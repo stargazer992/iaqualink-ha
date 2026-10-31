@@ -65,6 +65,10 @@ COMMAND_HOLD = 120.0
 GET_INFO_TIMEOUT = 20.0
 GET_INFO_INTERVAL = 60.0
 
+# home_screen status values; anything but Online means the controller can't act.
+SYSTEM_ONLINE = "Online"
+SYSTEM_SERVICE = "Service"
+
 
 class IclZone:
     """One iCL light zone; quacks like an iaqualink device for AqualinkEntity."""
@@ -78,6 +82,8 @@ class IclZone:
         self.system = manager.system
         self.data = data
         self.is_on: bool | None = None
+        self.reported_on: bool | None = None
+        self.desired_on: bool | None = None
         self.brightness_percentage: int | None = None
         self.rgb: tuple[int, int, int] | None = None
         self._hold_until = 0.0
@@ -103,12 +109,20 @@ class IclZone:
         """Return whether the controller reports this zone's on/off state."""
         return self.data.get("zoneStatus") in (STATUS_ON, STATUS_OFF)
 
+    @property
+    def settling(self) -> bool:
+        """Return whether a recent command may not show in reports yet."""
+        return time.monotonic() < self._hold_until
+
     def apply_report(self, data: dict[str, str]) -> None:
         """Take the reported state, unless a recent command is still settling."""
         self.data.update(data)
-        if time.monotonic() < self._hold_until:
+        status = data.get("zoneStatus")
+        if status in (STATUS_ON, STATUS_OFF):
+            self.reported_on = status == STATUS_ON
+        if self.settling:
             return
-        if (status := data.get("zoneStatus")) in (STATUS_ON, STATUS_OFF):
+        if status in (STATUS_ON, STATUS_OFF):
             self.is_on = status == STATUS_ON
         if (dim := _int(data.get("dim_level"))) is not None:
             self.brightness_percentage = dim
@@ -122,6 +136,8 @@ class IclZone:
         """Seed the state HA had before a restart, for what isn't reported."""
         if self.is_on is None:
             self.is_on = is_on
+        if self.desired_on is None:
+            self.desired_on = is_on
         if self.brightness_percentage is None:
             self.brightness_percentage = pct
         if self.rgb is None:
@@ -132,6 +148,7 @@ class IclZone:
     ) -> None:
         """Light the zone with the app's sequence, then set the brightness."""
         rgb = tuple(rgb) if rgb is not None else self.rgb or DEFAULT_RGB  # type: ignore[assignment]
+        self.desired_on = True
         self._hold()
         try:
             await self._on_off(STATUS_OFF)
@@ -159,6 +176,7 @@ class IclZone:
 
     async def turn_off(self) -> None:
         """Turn the zone off."""
+        self.desired_on = False
         self._hold()
         await self._on_off(STATUS_OFF)
         self.is_on = False
@@ -193,7 +211,18 @@ class IclManager:
         self.zones: dict[int, IclZone] = {}
         self.in_devices = False
         self.use_get_info = False
+        self.system_status: str | None = None
         self._last_get_info = 0.0
+        original_home = system._parse_home_response  # noqa: SLF001
+
+        def parse_home(response: Any) -> None:
+            try:
+                self.system_status = response.json()["home_screen"][0]["status"]
+            except ValueError, KeyError, IndexError, TypeError:
+                self.system_status = None
+            original_home(response)
+
+        system._parse_home_response = parse_home  # type: ignore[method-assign]  # noqa: SLF001
         original = system._parse_devices_response  # noqa: SLF001
 
         def parse_devices(response: Any) -> None:
@@ -223,13 +252,19 @@ class IclManager:
         ):
             await self._get_info()
 
-    async def _get_info(self) -> None:
+    async def async_read_zones(self) -> bool:
+        """Read the zones now; return whether the cloud answered."""
+        return await self._get_info()
+
+    async def _get_info(self) -> bool:
         self._last_get_info = time.monotonic()
         try:
             async with asyncio.timeout(GET_INFO_TIMEOUT):
                 await self.send(COMMAND_GET_INFO, {})
         except (AqualinkServiceException, TimeoutError, httpx.HTTPError) as err:
             _LOGGER.debug("get_icl_info failed: %s", err)
+            return False
+        return True
 
     def update(self, zones: Any) -> None:
         """Merge an ``icl_info_list`` into the known zones."""

@@ -1,7 +1,7 @@
 """Data update coordinator for iaqualink."""
 
 import logging
-from typing import Any, override
+from typing import TYPE_CHECKING, Any, override
 
 import httpx
 from iaqualink.exception import (
@@ -18,6 +18,9 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from .const import DOMAIN, UPDATE_INTERVAL_BY_SYSTEM_TYPE, UPDATE_INTERVAL_DEFAULT
 from .icl import IclManager
 from .utils import error_detail
+
+if TYPE_CHECKING:
+    from .watchdog import IclWatchdog
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -43,6 +46,7 @@ class AqualinkDataUpdateCoordinator(DataUpdateCoordinator[None]):
         )
         self.system = system
         self.icl: IclManager | None = None
+        self.watchdog: IclWatchdog | None = None
 
     async def async_refresh_after_command(self) -> None:
         """Show the result of a command.
@@ -59,7 +63,17 @@ class AqualinkDataUpdateCoordinator(DataUpdateCoordinator[None]):
 
     @override
     async def _async_update_data(self) -> None:
-        """Refresh internal state for a system."""
+        """Refresh internal state for a system, then let the watchdog look."""
+        reachable = False
+        try:
+            await self._async_update_system()
+            reachable = True
+        finally:
+            if self.watchdog is not None:
+                self.watchdog.reachable = reachable
+                self.watchdog.async_check()
+
+    async def _async_update_system(self) -> None:
         try:
             await self.system.update()
         except AqualinkServiceUnauthorizedException as err:

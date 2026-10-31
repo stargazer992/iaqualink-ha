@@ -41,6 +41,7 @@ from .coordinator import AqualinkDataUpdateCoordinator
 from .entity import AqualinkEntity
 from .icl import IclManager, IclZone
 from .utils import error_detail
+from .watchdog import IclWatchdog
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -253,6 +254,8 @@ async def _async_setup_system(
     if coordinator.icl is not None:
         await coordinator.icl.async_discover()
         runtime_data.icl_lights += list(coordinator.icl.zones.values())
+        if coordinator.icl.zones:
+            coordinator.watchdog = IclWatchdog(hass, coordinator, coordinator.icl)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: AqualinkConfigEntry) -> bool:
