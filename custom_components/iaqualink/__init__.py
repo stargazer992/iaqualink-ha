@@ -251,6 +251,7 @@ async def _async_setup_system(
             runtime_data.sensors += [dev]
 
     if coordinator.icl is not None:
+        await coordinator.icl.async_discover()
         runtime_data.icl_lights += list(coordinator.icl.zones.values())
 
 

@@ -1,53 +1,69 @@
 """iCL (Jandy Infinite WaterColors) light zones on iAqua systems.
 
-iaqualink 0.7.0 ignores the ``icl_info_list`` in the get_devices reply, so the
-zones are read and controlled here, over the library's session request. The
-zones are only read from get_devices and command replies: get_icl_info times
-out on real controllers.
+iaqualink 0.7.0 doesn't know about iCL zones, so they are read and controlled
+here, over the library's session request. Zones are read from the
+``icl_info_list`` of the get_devices reply when the controller includes it,
+otherwise from get_icl_info.
+
+The controller only lights a zone reliably with the sequence the iAquaLink app
+sends (captured from the app): off, wait 2 s, on, wait 1 s, then define the
+custom colour. Turning on therefore always runs that sequence, with the last
+colour when no new one is given. Brightness alone is a set_iclzone_color with
+only a dim level, which keeps the colour.
+
+The cloud reports zone state late (and some zones, often the spa, only as
+"absent"), so the zone keeps the state it was last commanded to for a while
+instead of letting a stale report flip it back.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from typing import TYPE_CHECKING, Any
+
+import httpx
+from iaqualink.exception import AqualinkServiceException
 
 if TYPE_CHECKING:
     from iaqualink.systems.iaqua.system import IaquaSystem
 
 _LOGGER = logging.getLogger(__name__)
 
+COMMAND_GET_INFO = "get_icl_info"
 COMMAND_ON_OFF = "onoff_iclzone"
 COMMAND_SET_COLOR = "set_iclzone_color"
 COMMAND_SET_CUSTOM_COLOR = "define_iclzone_customcolor"
 
 STATUS_ON = "on"
+STATUS_OFF = "off"
 STATUS_ABSENT = "absent"
 
-CUSTOM_COLOR_ID = 16
-EFFECTS: dict[str, int] = {
-    "Alpine White": 1,
-    "Sky Blue": 2,
-    "Cobalt Blue": 3,
-    "Caribbean Blue": 4,
-    "Spring Green": 5,
-    "Emerald Green": 6,
-    "Emerald Rose": 7,
-    "Ruby Red": 8,
-    "Magenta": 9,
-    "Violet": 10,
-    "Slow Color Splash": 11,
-    "Fast Color Splash": 12,
-    "America The Beautiful": 13,
-    "Fat Tuesday": 14,
-    "Disco Tech": 15,
+# Same colours as the pool light picker and the PyScript presets.
+PRESETS: dict[str, tuple[int, int, int]] = {
+    "Turquoise": (27, 205, 255),
+    "White": (255, 255, 255),
+    "Blue": (0, 100, 255),
+    "Green": (0, 255, 100),
+    "Purple": (148, 0, 211),
+    "Pink": (255, 105, 180),
+    "Red": (255, 0, 0),
+    "Orange": (255, 165, 0),
+    "Yellow": (255, 255, 0),
+    "Cyan": (0, 255, 255),
+    "Magenta": (255, 0, 255),
+    "Warm White": (255, 244, 229),
+    "Cool White": (240, 255, 255),
 }
-EFFECT_NAMES = {v: k for k, v in EFFECTS.items()}
+DEFAULT_RGB = PRESETS["Turquoise"]
 
-# The iAquaLink app turns a zone off and on again before a custom colour,
-# otherwise the controller can keep showing the previous colour.
-CUSTOM_COLOR_OFF_DELAY = 2.0
-CUSTOM_COLOR_ON_DELAY = 1.0
+TURN_ON_OFF_DELAY = 2.0
+TURN_ON_ON_DELAY = 1.0
+BRIGHTNESS_SETTLE_DELAY = 1.5
+COMMAND_HOLD = 120.0
+GET_INFO_TIMEOUT = 20.0
+GET_INFO_INTERVAL = 60.0
 
 
 class IclZone:
@@ -61,6 +77,11 @@ class IclZone:
         self.manager = manager
         self.system = manager.system
         self.data = data
+        self.is_on: bool | None = None
+        self.brightness_percentage: int | None = None
+        self.rgb: tuple[int, int, int] | None = None
+        self._hold_until = 0.0
+        self.apply_report(data)
 
     @property
     def zone_id(self) -> int:
@@ -78,87 +99,89 @@ class IclZone:
         return self.data.get("zoneName") or f"Light Zone {self.zone_id}"
 
     @property
-    def is_on(self) -> bool:
-        """Return whether the zone is on."""
-        return self.data.get("zoneStatus") == STATUS_ON
+    def reports_state(self) -> bool:
+        """Return whether the controller reports this zone's on/off state."""
+        return self.data.get("zoneStatus") in (STATUS_ON, STATUS_OFF)
 
-    @property
-    def brightness_percentage(self) -> int | None:
-        """Return the dim level (0-100)."""
+    def apply_report(self, data: dict[str, str]) -> None:
+        """Take the reported state, unless a recent command is still settling."""
+        self.data.update(data)
+        if time.monotonic() < self._hold_until:
+            return
+        if (status := data.get("zoneStatus")) in (STATUS_ON, STATUS_OFF):
+            self.is_on = status == STATUS_ON
+        if (dim := _int(data.get("dim_level"))) is not None:
+            self.brightness_percentage = dim
+        rgb = tuple(_int(data.get(k)) for k in ("red_val", "green_val", "blue_val"))
+        if None not in rgb:
+            self.rgb = rgb  # type: ignore[assignment]
+
+    def restore(
+        self, is_on: bool | None, pct: int | None, rgb: tuple[int, int, int] | None
+    ) -> None:
+        """Seed the state HA had before a restart, for what isn't reported."""
+        if self.is_on is None:
+            self.is_on = is_on
+        if self.brightness_percentage is None:
+            self.brightness_percentage = pct
+        if self.rgb is None:
+            self.rgb = rgb
+
+    async def turn_on(
+        self, rgb: tuple[int, int, int] | None = None, percentage: int | None = None
+    ) -> None:
+        """Light the zone with the app's sequence, then set the brightness."""
+        rgb = tuple(rgb) if rgb is not None else self.rgb or DEFAULT_RGB  # type: ignore[assignment]
+        self._hold()
         try:
-            return int(self.data["dim_level"])
-        except KeyError, ValueError:
-            return None
-
-    @property
-    def color_id(self) -> int | None:
-        """Return the colour/show number (1-15 named, 16 custom)."""
-        try:
-            return int(self.data["zoneColor"])
-        except KeyError, ValueError:
-            return None
-
-    @property
-    def effect(self) -> str | None:
-        """Return the named colour/show, if one is active."""
-        color_id = self.color_id
-        return EFFECT_NAMES.get(color_id) if color_id is not None else None
-
-    @property
-    def rgb(self) -> tuple[int, int, int] | None:
-        """Return the custom colour, if the API reported one."""
-        try:
-            return (
-                int(self.data["red_val"]),
-                int(self.data["green_val"]),
-                int(self.data["blue_val"]),
+            await self._on_off(STATUS_OFF)
+        except (AqualinkServiceException, TimeoutError, httpx.HTTPError) as err:
+            _LOGGER.warning(
+                "iCL zone %s: turning off first failed: %s", self.zone_id, err
             )
-        except KeyError, ValueError:
-            return None
-
-    async def turn_on(self) -> None:
-        """Turn the zone on."""
-        await self.manager.send(COMMAND_ON_OFF, self._params(on_off_action="on"))
+        await asyncio.sleep(TURN_ON_OFF_DELAY)
+        await self._on_off(STATUS_ON)
+        await asyncio.sleep(TURN_ON_ON_DELAY)
+        red, green, blue = rgb
+        await self._send(
+            COMMAND_SET_CUSTOM_COLOR,
+            red_val=red,
+            green_val=green,
+            blue_val=blue,
+            white_val=0,
+        )
+        self.is_on = True
+        self.rgb = (red, green, blue)
+        if percentage is not None:
+            await asyncio.sleep(BRIGHTNESS_SETTLE_DELAY)
+            await self.set_brightness(percentage)
+        self._hold()
 
     async def turn_off(self) -> None:
         """Turn the zone off."""
-        await self.manager.send(COMMAND_ON_OFF, self._params(on_off_action="off"))
+        self._hold()
+        await self._on_off(STATUS_OFF)
+        self.is_on = False
+        self._hold()
 
     async def set_brightness(self, percentage: int) -> None:
         """Set the dim level without changing the colour."""
-        await self.manager.send(COMMAND_SET_COLOR, self._params(dim_level=percentage))
+        self._hold()
+        await self._send(COMMAND_SET_COLOR, dim_level=percentage)
+        self.brightness_percentage = percentage
+        self._hold()
 
-    async def set_effect(self, effect: str, percentage: int | None = None) -> None:
-        """Select one of the 15 Jandy colours/shows."""
-        if percentage is None:
-            percentage = self.brightness_percentage or 100
+    async def _on_off(self, action: str) -> None:
+        await self._send(COMMAND_ON_OFF, on_off_action=action)
+
+    async def _send(self, command: str, **params: Any) -> None:
         await self.manager.send(
-            COMMAND_SET_COLOR,
-            self._params(color_id=EFFECTS[effect], dim_level=percentage),
+            command,
+            {"zone_id": str(self.zone_id), **{k: str(v) for k, v in params.items()}},
         )
 
-    async def set_rgb(self, red: int, green: int, blue: int) -> None:
-        """Show a custom colour, following the iAquaLink app's sequence."""
-        await self.turn_off()
-        await asyncio.sleep(CUSTOM_COLOR_OFF_DELAY)
-        await self.turn_on()
-        await asyncio.sleep(CUSTOM_COLOR_ON_DELAY)
-        response = await self.manager.send(
-            COMMAND_SET_CUSTOM_COLOR,
-            self._params(red_val=red, green_val=green, blue_val=blue, white_val=0),
-        )
-        self.data.update(
-            {
-                "zoneStatus": STATUS_ON,
-                "zoneColor": str(CUSTOM_COLOR_ID),
-                "red_val": str(response.get("red_val", red)),
-                "green_val": str(response.get("green_val", green)),
-                "blue_val": str(response.get("blue_val", blue)),
-            }
-        )
-
-    def _params(self, **params: Any) -> dict[str, str]:
-        return {"zone_id": str(self.zone_id), **{k: str(v) for k, v in params.items()}}
+    def _hold(self) -> None:
+        self._hold_until = time.monotonic() + COMMAND_HOLD
 
 
 class IclManager:
@@ -168,6 +191,9 @@ class IclManager:
         """Hook into the system's device-screen parsing."""
         self.system = system
         self.zones: dict[int, IclZone] = {}
+        self.in_devices = False
+        self.use_get_info = False
+        self._last_get_info = 0.0
         original = system._parse_devices_response  # noqa: SLF001
 
         def parse_devices(response: Any) -> None:
@@ -177,9 +203,33 @@ class IclManager:
             except ValueError:
                 return
             if isinstance(data, dict) and "icl_info_list" in data:
+                self.in_devices = True
                 self.update(data["icl_info_list"])
 
         system._parse_devices_response = parse_devices  # type: ignore[method-assign]  # noqa: SLF001
+
+    async def async_discover(self) -> None:
+        """Fall back to get_icl_info when get_devices doesn't list the zones."""
+        present = self.system.devices.get("is_icl_present")
+        if self.in_devices or not getattr(present, "is_on", False):
+            return
+        await self._get_info()
+        self.use_get_info = bool(self.zones)
+
+    async def async_poll(self) -> None:
+        """Refresh the zones that get_devices doesn't report."""
+        if self.use_get_info and (
+            time.monotonic() - self._last_get_info >= GET_INFO_INTERVAL
+        ):
+            await self._get_info()
+
+    async def _get_info(self) -> None:
+        self._last_get_info = time.monotonic()
+        try:
+            async with asyncio.timeout(GET_INFO_TIMEOUT):
+                await self.send(COMMAND_GET_INFO, {})
+        except (AqualinkServiceException, TimeoutError, httpx.HTTPError) as err:
+            _LOGGER.debug("get_icl_info failed: %s", err)
 
     def update(self, zones: Any) -> None:
         """Merge an ``icl_info_list`` into the known zones."""
@@ -188,16 +238,12 @@ class IclManager:
         for zone in zones:
             if not isinstance(zone, dict) or zone.get("zoneId") is None:
                 continue
-            try:
-                zone_id = int(zone["zoneId"])
-            except TypeError, ValueError:
-                continue
-            if zone.get("zoneStatus") == STATUS_ABSENT:
-                self.zones.pop(zone_id, None)
+            zone_id = _int(zone["zoneId"])
+            if zone_id is None:
                 continue
             data = {k: "" if v is None else str(v) for k, v in zone.items()}
             if zone_id in self.zones:
-                self.zones[zone_id].data.update(data)
+                self.zones[zone_id].apply_report(data)
             else:
                 self.zones[zone_id] = IclZone(self, data)
 
@@ -213,3 +259,10 @@ class IclManager:
         _LOGGER.debug("iCL %s reply: %s", command, data)
         self.update(data.get("icl_info_list"))
         return data
+
+
+def _int(value: Any) -> int | None:
+    try:
+        return int(value)
+    except TypeError, ValueError:
+        return None

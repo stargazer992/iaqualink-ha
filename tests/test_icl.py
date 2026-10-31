@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Generator
+import time
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -13,7 +15,11 @@ from iaqualink.systems.iaqua.device import (
     IaquaDimmableLight,
 )
 from iaqualink.systems.iaqua.system import IaquaSystem
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+import pytest
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    mock_restore_cache,
+)
 
 from custom_components.iaqualink import icl
 from custom_components.iaqualink.coordinator import AqualinkDataUpdateCoordinator
@@ -26,18 +32,22 @@ from homeassistant.components.light import (
 )
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import (
+    ATTR_ASSUMED_STATE,
     ATTR_ENTITY_ID,
     SERVICE_TURN_OFF,
     SERVICE_TURN_ON,
     STATE_OFF,
     STATE_ON,
+    STATE_UNKNOWN,
 )
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, State
 
 from .conftest import get_aqualink_device, get_aqualink_system, setup_entry
 
 POOL = "light.pool"
 SPA = "light.spa"
+SERIAL = "SN00001"
+TURQUOISE = {"red_val": "27", "green_val": "205", "blue_val": "255", "white_val": "0"}
 
 
 def _response(data: dict[str, Any]) -> MagicMock:
@@ -46,8 +56,22 @@ def _response(data: dict[str, Any]) -> MagicMock:
     return response
 
 
+@pytest.fixture(autouse=True)
+def no_delays() -> Generator[None]:
+    """Skip the controller's settle delays."""
+    with (
+        patch.object(icl, "TURN_ON_OFF_DELAY", 0),
+        patch.object(icl, "TURN_ON_ON_DELAY", 0),
+        patch.object(icl, "BRIGHTNESS_SETTLE_DELAY", 0),
+    ):
+        yield
+
+
 class FakeIclCloud:
-    """Answers iCL commands like the iAquaLink cloud does."""
+    """Answers iCL commands like the iAquaLink cloud does.
+
+    The spa zone is reported as "absent", as Robert's controller does.
+    """
 
     def __init__(self) -> None:
         self.zones = {
@@ -58,41 +82,42 @@ class FakeIclCloud:
                 "zoneColor": 0,
                 "dim_level": 50,
             },
-            2: {
-                "zoneId": 2,
-                "zoneName": "Spa",
-                "zoneStatus": "off",
-                "zoneColor": 0,
-                "dim_level": 100,
-            },
-            3: {"zoneId": 3, "zoneStatus": "absent"},
+            2: {"zoneId": 2, "zoneName": "Spa", "zoneStatus": "absent"},
         }
         self.calls: list[tuple[str, dict[str, str]]] = []
 
     def info(self) -> dict[str, Any]:
-        return {"icl_info_list": list(self.zones.values())}
+        return {"icl_info_list": [dict(z) for z in self.zones.values()]}
 
     async def send(self, command: str, params: dict[str, str]) -> MagicMock:
         self.calls.append((command, params))
-        zone = self.zones.get(int(params.get("zone_id", 0)))
+        zone = self.zones.get(int(params.get("zone_id", 0)), {})
+        if zone.get("zoneStatus") == "absent":
+            return _response(self.info())
         if command == icl.COMMAND_ON_OFF:
             zone["zoneStatus"] = params["on_off_action"]
         elif command == icl.COMMAND_SET_COLOR:
-            if "color_id" in params:
-                zone["zoneColor"] = int(params["color_id"])
             zone["dim_level"] = int(params["dim_level"])
         elif command == icl.COMMAND_SET_CUSTOM_COLOR:
-            zone["zoneColor"] = icl.CUSTOM_COLOR_ID
-            return _response(
-                {k: params[k] for k in ("red_val", "green_val", "blue_val")}
-            )
+            zone["zoneColor"] = 16
+            zone.update({k: params[k] for k in ("red_val", "green_val", "blue_val")})
         return _response(self.info())
+
+
+def _sequence(zone: str, rgb: dict[str, str]) -> list[tuple[str, dict[str, str]]]:
+    return [
+        (icl.COMMAND_ON_OFF, {"zone_id": zone, "on_off_action": "off"}),
+        (icl.COMMAND_ON_OFF, {"zone_id": zone, "on_off_action": "on"}),
+        (icl.COMMAND_SET_CUSTOM_COLOR, {"zone_id": zone, **rgb}),
+    ]
 
 
 async def _setup_icl(
     hass: HomeAssistant,
     config_entry: MockConfigEntry,
     client: AqualinkClient,
+    *,
+    in_devices: bool = True,
 ) -> tuple[IaquaSystem, FakeIclCloud]:
     cloud = FakeIclCloud()
     system = get_aqualink_system(client, cls=IaquaSystem)
@@ -104,7 +129,8 @@ async def _setup_icl(
     system._parse_devices_response = MagicMock()
 
     async def update() -> None:
-        system._parse_devices_response(_response(cloud.info()))
+        if in_devices:
+            system._parse_devices_response(_response(cloud.info()))
 
     system.update = AsyncMock(side_effect=update)
     system.get_devices = AsyncMock(return_value={present.name: present})
@@ -113,117 +139,158 @@ async def _setup_icl(
     return system, cloud
 
 
+async def _call(hass: HomeAssistant, service: str, **data: Any) -> None:
+    await hass.services.async_call(LIGHT_DOMAIN, service, data, blocking=True)
+
+
 async def test_icl_zones_discovered(
     hass: HomeAssistant, config_entry: MockConfigEntry, client: AqualinkClient
 ) -> None:
-    """Zones come from the get_devices reply; absent zones are skipped."""
+    """Zones come from get_devices; an "absent" zone is kept, as assumed state."""
     _, cloud = await _setup_icl(hass, config_entry, client)
 
     assert sorted(hass.states.async_entity_ids(LIGHT_DOMAIN)) == [POOL, SPA]
-    state = hass.states.get(POOL)
-    assert state.state == STATE_OFF
-    assert "Off" not in state.attributes[ATTR_EFFECT_LIST]
-    assert len(state.attributes[ATTR_EFFECT_LIST]) == 15
+    pool = hass.states.get(POOL)
+    assert pool.state == STATE_OFF
+    assert not pool.attributes.get(ATTR_ASSUMED_STATE)
+    assert pool.attributes[ATTR_EFFECT_LIST] == list(icl.PRESETS)
+    spa = hass.states.get(SPA)
+    assert spa.state == STATE_UNKNOWN
+    assert spa.attributes[ATTR_ASSUMED_STATE]
     assert cloud.calls == []
 
 
-async def test_icl_turn_on_off(
+async def test_icl_zones_from_get_icl_info(
     hass: HomeAssistant, config_entry: MockConfigEntry, client: AqualinkClient
 ) -> None:
-    """The light switch sends onoff_iclzone for the right zone."""
+    """Without icl_info_list in get_devices, get_icl_info is used instead."""
+    _, cloud = await _setup_icl(hass, config_entry, client, in_devices=False)
+
+    assert cloud.calls == [(icl.COMMAND_GET_INFO, {})]
+    assert sorted(hass.states.async_entity_ids(LIGHT_DOMAIN)) == [POOL, SPA]
+
+
+async def test_icl_turn_on_runs_app_sequence(
+    hass: HomeAssistant, config_entry: MockConfigEntry, client: AqualinkClient
+) -> None:
+    """Turning on sends off, on, then the custom colour (last one, or turquoise)."""
     _, cloud = await _setup_icl(hass, config_entry, client)
 
-    await hass.services.async_call(
-        LIGHT_DOMAIN, SERVICE_TURN_ON, {ATTR_ENTITY_ID: SPA}, blocking=True
-    )
-    assert cloud.calls == [
-        (icl.COMMAND_ON_OFF, {"zone_id": "2", "on_off_action": "on"})
-    ]
-    assert hass.states.get(SPA).state == STATE_ON
-    assert hass.states.get(POOL).state == STATE_OFF
+    await _call(hass, SERVICE_TURN_ON, entity_id=POOL)
+    assert cloud.calls == _sequence("1", TURQUOISE)
+    state = hass.states.get(POOL)
+    assert state.state == STATE_ON
+    assert state.attributes[ATTR_RGB_COLOR] == (27, 205, 255)
+    assert state.attributes[ATTR_EFFECT] == "Turquoise"
 
-    await hass.services.async_call(
-        LIGHT_DOMAIN, SERVICE_TURN_OFF, {ATTR_ENTITY_ID: SPA}, blocking=True
-    )
+    await _call(hass, SERVICE_TURN_OFF, entity_id=POOL)
     assert cloud.calls[-1] == (
         icl.COMMAND_ON_OFF,
-        {"zone_id": "2", "on_off_action": "off"},
+        {"zone_id": "1", "on_off_action": "off"},
     )
-    assert hass.states.get(SPA).state == STATE_OFF
+    assert hass.states.get(POOL).state == STATE_OFF
 
 
-async def test_icl_brightness_never_zero(
+async def test_icl_absent_zone_is_commanded(
     hass: HomeAssistant, config_entry: MockConfigEntry, client: AqualinkClient
 ) -> None:
-    """A low brightness turns the zone on at the 5% minimum."""
+    """A zone reported "absent" (the spa) still gets the commands and shows them."""
     _, cloud = await _setup_icl(hass, config_entry, client)
 
-    await hass.services.async_call(
-        LIGHT_DOMAIN,
-        SERVICE_TURN_ON,
-        {ATTR_ENTITY_ID: POOL, ATTR_BRIGHTNESS: 1},
-        blocking=True,
-    )
+    await _call(hass, SERVICE_TURN_ON, entity_id=SPA, brightness_pct=5)
     assert cloud.calls == [
-        (icl.COMMAND_ON_OFF, {"zone_id": "1", "on_off_action": "on"}),
-        (icl.COMMAND_SET_COLOR, {"zone_id": "1", "dim_level": "5"}),
+        *_sequence("2", TURQUOISE),
+        (icl.COMMAND_SET_COLOR, {"zone_id": "2", "dim_level": "5"}),
     ]
+    state = hass.states.get(SPA)
+    assert state.state == STATE_ON
+    assert state.attributes[ATTR_BRIGHTNESS] == 13
+
+    await config_entry.runtime_data.coordinators[SERIAL].async_refresh()
+    assert hass.states.get(SPA).state == STATE_ON
+
+
+async def test_icl_brightness(
+    hass: HomeAssistant, config_entry: MockConfigEntry, client: AqualinkClient
+) -> None:
+    """When on, brightness only sends a dim level; low values stay at 5%."""
+    _, cloud = await _setup_icl(hass, config_entry, client)
+    await _call(hass, SERVICE_TURN_ON, entity_id=POOL)
+    cloud.calls.clear()
+
+    await _call(hass, SERVICE_TURN_ON, entity_id=POOL, brightness=1)
+    assert cloud.calls == [(icl.COMMAND_SET_COLOR, {"zone_id": "1", "dim_level": "5"})]
     assert hass.states.get(POOL).attributes[ATTR_BRIGHTNESS] == 13
 
 
-async def test_icl_effect(
+async def test_icl_preset_and_rgb(
     hass: HomeAssistant, config_entry: MockConfigEntry, client: AqualinkClient
 ) -> None:
-    """A Jandy colour keeps the current dim level."""
+    """Presets and custom colours both run the app sequence with their colour."""
     _, cloud = await _setup_icl(hass, config_entry, client)
+    blue = {"red_val": "0", "green_val": "100", "blue_val": "255", "white_val": "0"}
 
-    await hass.services.async_call(
-        LIGHT_DOMAIN,
-        SERVICE_TURN_ON,
-        {ATTR_ENTITY_ID: POOL, ATTR_EFFECT: "Emerald Green"},
-        blocking=True,
+    await _call(hass, SERVICE_TURN_ON, entity_id=POOL, effect="Blue")
+    assert cloud.calls == _sequence("1", blue)
+    cloud.calls.clear()
+
+    await _call(hass, SERVICE_TURN_ON, entity_id=POOL, rgb_color=(10, 20, 30))
+    assert cloud.calls == _sequence(
+        "1", {"red_val": "10", "green_val": "20", "blue_val": "30", "white_val": "0"}
     )
-    assert cloud.calls[-1] == (
-        icl.COMMAND_SET_COLOR,
-        {"zone_id": "1", "color_id": "6", "dim_level": "50"},
-    )
-    assert hass.states.get(POOL).attributes[ATTR_EFFECT] == "Emerald Green"
-
-
-async def test_icl_custom_rgb(
-    hass: HomeAssistant, config_entry: MockConfigEntry, client: AqualinkClient
-) -> None:
-    """A custom colour cycles the zone off and on first, like the app."""
-    _, cloud = await _setup_icl(hass, config_entry, client)
-
-    with (
-        patch.object(icl, "CUSTOM_COLOR_OFF_DELAY", 0),
-        patch.object(icl, "CUSTOM_COLOR_ON_DELAY", 0),
-    ):
-        await hass.services.async_call(
-            LIGHT_DOMAIN,
-            SERVICE_TURN_ON,
-            {ATTR_ENTITY_ID: POOL, ATTR_RGB_COLOR: (0, 100, 255), ATTR_BRIGHTNESS: 255},
-            blocking=True,
-        )
-    assert [c[0] for c in cloud.calls] == [
-        icl.COMMAND_ON_OFF,
-        icl.COMMAND_ON_OFF,
-        icl.COMMAND_SET_CUSTOM_COLOR,
-        icl.COMMAND_SET_COLOR,
-    ]
-    assert cloud.calls[0][1]["on_off_action"] == "off"
-    assert cloud.calls[2][1] == {
-        "zone_id": "1",
-        "red_val": "0",
-        "green_val": "100",
-        "blue_val": "255",
-        "white_val": "0",
-    }
     state = hass.states.get(POOL)
-    assert state.state == STATE_ON
-    assert state.attributes[ATTR_RGB_COLOR] == (0, 100, 255)
+    assert state.attributes[ATTR_RGB_COLOR] == (10, 20, 30)
     assert state.attributes[ATTR_EFFECT] is None
+    cloud.calls.clear()
+
+    await _call(hass, SERVICE_TURN_OFF, entity_id=POOL)
+    await _call(hass, SERVICE_TURN_ON, entity_id=POOL)
+    assert cloud.calls[1:] == _sequence(
+        "1", {"red_val": "10", "green_val": "20", "blue_val": "30", "white_val": "0"}
+    )
+
+
+async def test_icl_stale_report_ignored_after_command(
+    hass: HomeAssistant, config_entry: MockConfigEntry, client: AqualinkClient
+) -> None:
+    """A lagging cloud report doesn't flip a just-commanded zone back."""
+    _, cloud = await _setup_icl(hass, config_entry, client)
+    coordinator = config_entry.runtime_data.coordinators[SERIAL]
+    await _call(hass, SERVICE_TURN_ON, entity_id=POOL)
+
+    cloud.zones[1]["zoneStatus"] = "off"
+    await coordinator.async_refresh()
+    assert hass.states.get(POOL).state == STATE_ON
+
+    with patch.object(icl.time, "monotonic", return_value=time.monotonic() + 1e6):
+        await coordinator.async_refresh()
+    assert hass.states.get(POOL).state == STATE_OFF
+
+
+async def test_icl_restores_unreported_state(
+    hass: HomeAssistant, config_entry: MockConfigEntry, client: AqualinkClient
+) -> None:
+    """After a restart the spa shows its last state and colour."""
+    mock_restore_cache(
+        hass,
+        [State(SPA, STATE_ON, {ATTR_BRIGHTNESS: 13, ATTR_RGB_COLOR: [0, 100, 255]})],
+    )
+    _, cloud = await _setup_icl(hass, config_entry, client)
+
+    state = hass.states.get(SPA)
+    assert state.state == STATE_ON
+    assert state.attributes[ATTR_EFFECT] == "Blue"
+    await _call(hass, SERVICE_TURN_ON, entity_id=SPA)
+    assert cloud.calls[-1] == (
+        icl.COMMAND_SET_CUSTOM_COLOR,
+        {
+            "zone_id": "2",
+            "red_val": "0",
+            "green_val": "100",
+            "blue_val": "255",
+            "white_val": "0",
+        },
+    )
 
 
 async def test_dimmable_low_brightness_stays_on(

@@ -4,7 +4,7 @@ A custom version of Home Assistant's built-in [iAquaLink integration](https://ww
 
 ## What's different from the built-in integration
 
-- **iCL light zones.** Each Jandy Infinite WaterColors (iCL) zone becomes a `light` entity with on/off, brightness (5% steps), the 15 Jandy colours and shows as effects, and custom RGB colours. The built-in integration only shows `binary_sensor.is_icl_present`.
+- **iCL light zones.** Each Jandy Infinite WaterColors (iCL) zone becomes a `light` entity with on/off, brightness (5% steps), colour presets as effects, and custom RGB colours. Turning a zone on uses the command sequence captured from the iAquaLink app. The built-in integration only shows `binary_sensor.is_icl_present`.
 - **Pool & Spa light card.** `custom:iaqualink-pool-light-card` is served and loaded by the integration, so you don't need a Lovelace resource for it.
 - **Fixes:**
   - EXO systems show the new state right after a command instead of after the next poll (up to about a minute).
@@ -27,13 +27,17 @@ A custom version of Home Assistant's built-in [iAquaLink integration](https://ww
 
 Zones are named after the zone names in the iAquaLink app; with zones called "Pool" and "Spa" you get `light.pool` and `light.spa`.
 
+The controller only lights a zone reliably with the sequence the iAquaLink app sends, so every turn-on uses it:
+
 | Service call | What is sent |
 | --- | --- |
-| `light.turn_on` | `onoff_iclzone` (only if the zone is off) |
-| `light.turn_off` | `onoff_iclzone` |
-| `light.turn_on` with `brightness`/`brightness_pct` | `set_iclzone_color` with `dim_level` |
-| `light.turn_on` with `effect` (e.g. `Caribbean Blue`) | `set_iclzone_color` with `color_id` and the current dim level |
-| `light.turn_on` with `rgb_color` | off, wait 2 s, on, wait 1 s, `define_iclzone_customcolor` (the iAquaLink app's sequence) |
+| `light.turn_on` | `onoff_iclzone` off, wait 2 s, `onoff_iclzone` on, wait 1 s, `define_iclzone_customcolor` with the zone's last colour (turquoise if none) |
+| `light.turn_on` with `rgb_color`, or `effect` (a preset such as `Blue`) | the same sequence with that colour |
+| `light.turn_on` with `brightness`/`brightness_pct` while on | `set_iclzone_color` with only `dim_level` (keeps the colour) |
+| `light.turn_on` with `brightness` while off | the sequence, wait 1.5 s, then the dim level |
+| `light.turn_off` | `onoff_iclzone` off |
+
+Zone state comes from the `icl_info_list` in get_devices, or from `get_icl_info` (at most once a minute) when the controller doesn't include it there. For 2 minutes after a command the zone keeps the commanded state, because the cloud reports changes late. A zone the controller reports as `absent` (often the spa) is still controlled; it shows its commanded state as an assumed state and keeps it across restarts.
 
 The Aux relay that powers the lights (for example `switch.pool_light`) is still a separate switch.
 

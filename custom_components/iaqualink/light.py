@@ -12,13 +12,15 @@ from homeassistant.components.light import (
     LightEntity,
     LightEntityFeature,
 )
+from homeassistant.const import STATE_OFF, STATE_ON
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.helpers.restore_state import RestoreEntity
 
 from . import AqualinkConfigEntry, refresh_system
 from .coordinator import AqualinkDataUpdateCoordinator
 from .entity import AqualinkEntity
-from .icl import CUSTOM_COLOR_ID, EFFECTS, IclZone
+from .icl import PRESETS, IclZone
 from .utils import await_or_reraise
 
 PARALLEL_UPDATES = 1
@@ -127,19 +129,39 @@ class HassAqualinkLight(AqualinkEntity[AqualinkLight], LightEntity):
         return None
 
 
-class HassAqualinkIclLight(AqualinkEntity[Any], LightEntity):
-    """An iCL light zone: on/off, dim level, Jandy colours and custom RGB."""
+class HassAqualinkIclLight(AqualinkEntity[Any], LightEntity, RestoreEntity):
+    """An iCL light zone: on/off, dim level, colour presets and custom RGB."""
 
     _attr_color_mode = ColorMode.RGB
     _attr_supported_color_modes = {ColorMode.RGB}
     _attr_supported_features = LightEntityFeature.EFFECT
-    _attr_effect_list = list(EFFECTS)
+    _attr_effect_list = list(PRESETS)
 
     dev: IclZone
 
+    @override
+    async def async_added_to_hass(self) -> None:
+        """Restore what the controller doesn't report."""
+        await super().async_added_to_hass()
+        if (last := await self.async_get_last_state()) is None:
+            return
+        brightness = last.attributes.get(ATTR_BRIGHTNESS)
+        rgb = last.attributes.get(ATTR_RGB_COLOR)
+        self.dev.restore(
+            {STATE_ON: True, STATE_OFF: False}.get(last.state),
+            None if brightness is None else round(brightness * 100 / 255),
+            None if rgb is None else tuple(rgb),
+        )
+
     @property
     @override
-    def is_on(self) -> bool:
+    def assumed_state(self) -> bool:
+        """Return True when the controller doesn't report the zone's state."""
+        return super().assumed_state or not self.dev.reports_state
+
+    @property
+    @override
+    def is_on(self) -> bool | None:
         """Return whether the zone is on."""
         return self.dev.is_on
 
@@ -152,34 +174,31 @@ class HassAqualinkIclLight(AqualinkEntity[Any], LightEntity):
 
     @property
     @override
-    def effect(self) -> str | None:
-        """Return the active Jandy colour/show."""
-        return self.dev.effect
+    def rgb_color(self) -> tuple[int, int, int] | None:
+        """Return the zone's colour."""
+        return self.dev.rgb
 
     @property
     @override
-    def rgb_color(self) -> tuple[int, int, int] | None:
-        """Return the custom colour while it is active."""
-        return self.dev.rgb if self.dev.color_id == CUSTOM_COLOR_ID else None
+    def effect(self) -> str | None:
+        """Return the preset matching the current colour."""
+        rgb = self.dev.rgb
+        return next((name for name, c in PRESETS.items() if c == rgb), None)
 
     @refresh_system
     @override
     async def async_turn_on(self, **kwargs: Any) -> None:
-        """Turn the zone on and apply colour, show and brightness."""
+        """Turn the zone on (app sequence) or change its brightness."""
         pct = None
         if (brightness := kwargs.get(ATTR_BRIGHTNESS)) is not None:
             pct = _to_percentage(brightness, 5, 5)
-        if (rgb := kwargs.get(ATTR_RGB_COLOR)) is not None:
-            await self._run(self.dev.set_rgb(*rgb))
-            if pct is not None:
-                await self._run(self.dev.set_brightness(pct))
-            return
-        if not self.dev.is_on:
-            await self._run(self.dev.turn_on())
-        if effect := kwargs.get(ATTR_EFFECT):
-            await self._run(self.dev.set_effect(effect, pct))
-        elif pct is not None:
+        rgb = kwargs.get(ATTR_RGB_COLOR)
+        if rgb is None and (effect := kwargs.get(ATTR_EFFECT)) in PRESETS:
+            rgb = PRESETS[effect]
+        if rgb is None and pct is not None and self.dev.is_on:
             await self._run(self.dev.set_brightness(pct))
+            return
+        await self._run(self.dev.turn_on(rgb, pct))
 
     @refresh_system
     @override

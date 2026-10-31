@@ -77,3 +77,5 @@ class AqualinkDataUpdateCoordinator(DataUpdateCoordinator[None]):
             ) from err
         if self.system.online is not True:
             raise UpdateFailed(f"iAquaLink system {self.system.serial} is offline")
+        if self.icl is not None:
+            await self.icl.async_poll()

@@ -453,7 +453,8 @@ class IaqualinkPoolLightCard extends HTMLElement {
   }
   async _setBrightness() {
     const v = this._ui.br;
-    for (const z of this._targets()) { this._setOpt(z, { br: v }); await this._call("brightness", { zone: z, value: v }); }
+    // an off light keeps the level for later: light.turn_on would light it
+    for (const z of this._targets()) { const on = this._light(z).power; this._setOpt(z, { br: v }); if (on) await this._call("brightness", { zone: z, value: v }); }
     this._paintPower();
   }
   async _applyColor() {
