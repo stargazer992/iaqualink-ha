@@ -34,7 +34,7 @@ async def async_setup_entry(
     entities.extend(
         HassAqualinkServiceModeSensor(coordinator)
         for coordinator in config_entry.runtime_data.coordinators.values()
-        if coordinator.icl is not None
+        if coordinator.icl is not None or coordinator.system.NAME == "aqualinkd"
     )
     async_add_entities(entities)
 

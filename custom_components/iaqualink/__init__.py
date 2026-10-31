@@ -36,10 +36,11 @@ from homeassistant.helpers.typing import ConfigType
 from homeassistant.loader import async_get_integration
 from homeassistant.util.ssl import SSL_ALPN_HTTP11_HTTP2
 
-from .const import DOMAIN
+from .const import CONF_AQUALINKD_URL, CONF_CONNECTION, CONNECTION_LOCAL, DOMAIN
 from .coordinator import AqualinkDataUpdateCoordinator
 from .entity import AqualinkEntity
 from .icl import IclManager, IclZone
+from .local import AqualinkdClient, LocalSystem
 from .utils import error_detail
 from .watchdog import IclWatchdog
 
@@ -242,6 +243,12 @@ async def _async_setup_system(
         serial_number=system.serial,
     )
 
+    if (
+        entry.options.get(CONF_CONNECTION) == CONNECTION_LOCAL
+        and system.NAME == "iaqua"
+    ):
+        devices = await _async_setup_local(hass, entry, runtime_data, coordinator)
+
     for dev in devices.values():
         if isinstance(dev, AqualinkThermostat):
             runtime_data.thermostats += [dev]
@@ -259,6 +266,28 @@ async def _async_setup_system(
         runtime_data.icl_lights += list(coordinator.icl.zones.values())
         if coordinator.icl.zones:
             coordinator.watchdog = IclWatchdog(hass, coordinator, coordinator.icl)
+
+
+async def _async_setup_local(
+    hass: HomeAssistant,
+    entry: AqualinkConfigEntry,
+    runtime_data: AqualinkRuntimeData,
+    cloud: AqualinkDataUpdateCoordinator,
+) -> dict[str, Any]:
+    """Take the equipment from AqualinkD; the cloud keeps only the iCL zones."""
+    system = cloud.system
+    local = LocalSystem(
+        AqualinkdClient(entry.options[CONF_AQUALINKD_URL], get_async_client(hass)),
+        system.serial,
+        system.name,
+    )
+    coordinator = AqualinkDataUpdateCoordinator(hass, entry, local)
+    await coordinator.async_config_entry_first_refresh()
+    runtime_data.coordinators[system.serial] = coordinator
+    runtime_data.cloud_coordinators[system.serial] = cloud
+    # Nothing but the iCL lights listens to the cloud now; keep it polling.
+    entry.async_on_unload(cloud.async_add_listener(lambda: None))
+    return await local.get_devices()
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: AqualinkConfigEntry) -> bool:
