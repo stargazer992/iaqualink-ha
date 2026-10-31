@@ -1,0 +1,17 @@
+set_next_on:
+  target:
+    entity:
+      integration: iaqualink
+      domain: light
+  fields:
+    rgb_color:
+      example: "[0, 100, 255]"
+      selector:
+        color_rgb:
+    brightness_pct:
+      example: 50
+      selector:
+        number:
+          min: 1
+          max: 100
+          unit_of_measurement: "%"

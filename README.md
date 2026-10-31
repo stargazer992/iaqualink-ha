@@ -39,6 +39,10 @@ The controller only lights a zone reliably with the sequence the iAquaLink app s
 
 Zone state comes from the `icl_info_list` in get_devices, or from `get_icl_info` (at most once a minute) when the controller doesn't include it there. For 2 minutes after a command the zone keeps the commanded state, because the cloud reports changes late. A zone the controller reports as `absent` (often the spa) is still controlled; it shows its commanded state as an assumed state and keeps it across restarts.
 
+Each zone keeps its colour and brightness across restarts, also while it's off, and shows them as the `saved_rgb_color` and `saved_brightness_pct` attributes. A plain `light.turn_on` (voice, Apple Home, scenes) comes on in them and sends the saved brightness after the sequence. While a zone is off, the cloud's colour and dim level reports are ignored, because they repeat the last lit values.
+
+To pick the colour or brightness a zone comes on in without turning it on, use the `iaqualink.set_next_on` action (`rgb_color`, `brightness_pct`). If the zone is on, it changes straight away instead.
+
 The Aux relay that powers the lights (for example `switch.pool_light`) is still a separate switch.
 
 ### Watchdog

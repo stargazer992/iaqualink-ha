@@ -3,9 +3,11 @@
 from typing import Any, override
 
 from iaqualink.device import AqualinkLight
+import voluptuous as vol
 
 from homeassistant.components.light import (
     ATTR_BRIGHTNESS,
+    ATTR_BRIGHTNESS_PCT,
     ATTR_EFFECT,
     ATTR_RGB_COLOR,
     ColorMode,
@@ -13,9 +15,11 @@ from homeassistant.components.light import (
     LightEntityFeature,
 )
 from homeassistant.const import STATE_OFF, STATE_ON
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import ServiceValidationError
+from homeassistant.helpers import config_validation as cv, entity_platform
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
-from homeassistant.helpers.restore_state import RestoreEntity
+from homeassistant.helpers.restore_state import RestoredExtraData, RestoreEntity
 
 from . import AqualinkConfigEntry, refresh_system
 from .coordinator import AqualinkDataUpdateCoordinator
@@ -24,6 +28,10 @@ from .icl import PRESETS, IclZone
 from .utils import await_or_reraise
 
 PARALLEL_UPDATES = 1
+
+SERVICE_SET_NEXT_ON = "set_next_on"
+ATTR_SAVED_RGB_COLOR = "saved_rgb_color"
+ATTR_SAVED_BRIGHTNESS_PCT = "saved_brightness_pct"
 
 
 async def async_setup_entry(
@@ -42,6 +50,26 @@ async def async_setup_entry(
         for zone in runtime_data.icl_lights
     )
     async_add_entities(entities)
+    entity_platform.async_get_current_platform().async_register_entity_service(
+        SERVICE_SET_NEXT_ON,
+        {
+            vol.Optional(ATTR_RGB_COLOR): vol.All(
+                vol.Coerce(tuple), vol.ExactSequence((cv.byte,) * 3)
+            ),
+            vol.Optional(ATTR_BRIGHTNESS_PCT): vol.All(
+                vol.Coerce(int), vol.Range(min=1, max=100)
+            ),
+        },
+        _async_set_next_on,
+    )
+
+
+async def _async_set_next_on(entity: LightEntity, call: ServiceCall) -> None:
+    if not isinstance(entity, HassAqualinkIclLight):
+        raise ServiceValidationError(f"{entity.entity_id} is not an iCL light zone")
+    await entity.async_set_next_on(
+        call.data.get(ATTR_RGB_COLOR), call.data.get(ATTR_BRIGHTNESS_PCT)
+    )
 
 
 def _to_percentage(brightness: int, step: int, minimum: int) -> int:
@@ -143,15 +171,62 @@ class HassAqualinkIclLight(AqualinkEntity[Any], LightEntity, RestoreEntity):
     async def async_added_to_hass(self) -> None:
         """Restore what the controller doesn't report."""
         await super().async_added_to_hass()
-        if (last := await self.async_get_last_state()) is None:
+        last = await self.async_get_last_state()
+        extra = await self.async_get_last_extra_data()
+        saved = extra.as_dict() if extra is not None else {}
+        if last is None and not saved:
             return
-        brightness = last.attributes.get(ATTR_BRIGHTNESS)
-        rgb = last.attributes.get(ATTR_RGB_COLOR)
+        attrs = last.attributes if last is not None else {}
+        pct = saved.get(ATTR_SAVED_BRIGHTNESS_PCT)
+        if pct is None and (brightness := attrs.get(ATTR_BRIGHTNESS)) is not None:
+            pct = round(brightness * 100 / 255)
+        rgb = saved.get(ATTR_SAVED_RGB_COLOR) or attrs.get(ATTR_RGB_COLOR)
+        if saved and not self.dev.is_on:
+            # The first poll fills in the cloud's last lit values; ours win.
+            self.dev.remember(None if rgb is None else tuple(rgb), pct)
         self.dev.restore(
-            {STATE_ON: True, STATE_OFF: False}.get(last.state),
-            None if brightness is None else round(brightness * 100 / 255),
+            None
+            if last is None
+            else {STATE_ON: True, STATE_OFF: False}.get(last.state),
+            pct,
             None if rgb is None else tuple(rgb),
         )
+
+    @property
+    @override
+    def extra_restore_state_data(self) -> RestoredExtraData:
+        """Keep the colour and brightness across restarts, even while off."""
+        return RestoredExtraData(self._saved())
+
+    @property
+    @override
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Show the colour and brightness the next turn-on uses."""
+        return self._saved()
+
+    def _saved(self) -> dict[str, Any]:
+        rgb = self.dev.rgb
+        return {
+            ATTR_SAVED_RGB_COLOR: None if rgb is None else list(rgb),
+            ATTR_SAVED_BRIGHTNESS_PCT: self.dev.brightness_percentage,
+        }
+
+    async def async_set_next_on(
+        self, rgb: tuple[int, int, int] | None, pct: int | None
+    ) -> None:
+        """Change the colour/brightness now if on, else keep it for next turn-on."""
+        if rgb is None and pct is None:
+            return
+        if self.dev.is_on:
+            kwargs: dict[str, Any] = {}
+            if rgb is not None:
+                kwargs[ATTR_RGB_COLOR] = tuple(rgb)
+            if pct is not None:
+                kwargs[ATTR_BRIGHTNESS] = round(pct * 255 / 100)
+            await self.async_turn_on(**kwargs)
+            return
+        self.dev.remember(None if rgb is None else tuple(rgb), pct)
+        self.async_write_ha_state()
 
     @property
     @override

@@ -124,10 +124,14 @@ class IclZone:
             return
         if status in (STATUS_ON, STATUS_OFF):
             self.is_on = status == STATUS_ON
-        if (dim := _int(data.get("dim_level"))) is not None:
+        # While off the cloud repeats the last lit values: only use them to fill
+        # gaps, so the colour/brightness kept for the next turn-on stays.
+        if (dim := _int(data.get("dim_level"))) is not None and (
+            self.is_on or self.brightness_percentage is None
+        ):
             self.brightness_percentage = dim
         rgb = tuple(_int(data.get(k)) for k in ("red_val", "green_val", "blue_val"))
-        if None not in rgb:
+        if None not in rgb and (self.is_on or self.rgb is None):
             self.rgb = rgb  # type: ignore[assignment]
 
     def restore(
@@ -143,11 +147,20 @@ class IclZone:
         if self.rgb is None:
             self.rgb = rgb
 
+    def remember(self, rgb: tuple[int, int, int] | None, pct: int | None) -> None:
+        """Set the colour and brightness the next turn-on uses, without sending."""
+        if rgb is not None:
+            self.rgb = tuple(rgb)  # type: ignore[assignment]
+        if pct is not None:
+            self.brightness_percentage = pct
+
     async def turn_on(
         self, rgb: tuple[int, int, int] | None = None, percentage: int | None = None
     ) -> None:
         """Light the zone with the app's sequence, then set the brightness."""
         rgb = tuple(rgb) if rgb is not None else self.rgb or DEFAULT_RGB  # type: ignore[assignment]
+        if percentage is None:
+            percentage = self.brightness_percentage
         self.desired_on = True
         self._hold()
         try:
