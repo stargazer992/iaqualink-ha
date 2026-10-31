@@ -50,6 +50,9 @@ UNITS = {
     "SWG/PPM": "ppm",
     "CHEM/ORP": "mV",
 }
+# AqualinkD's Light_Type for Jandy Infinite WaterColors (virtual button, mode 7).
+INFINITE_LIGHT_TYPE = "7"
+
 # AqualinkD's aux row fields for a variable-speed pump -> sensor suffix.
 PUMP_FIELDS = {
     "Pump_RPM": "RPM",
@@ -120,6 +123,8 @@ class LocalSystem(AqualinkSystem):
         self.temp_unit = "F"
         self.status_text: str | None = None
         self.last_refresh = 0
+        # Infinite WaterColors buttons by label; they drive the iCL light zones.
+        self.infinite: dict[str, LocalInfiniteLight] = {}
 
     @override
     async def get_devices(self) -> dict[str, AqualinkDevice]:
@@ -213,6 +218,16 @@ class LocalSystem(AqualinkSystem):
                     (0, 100, 1),
                     "%",
                 )
+            elif kind == "switch" and (
+                str(row.get("Light_Type")) == INFINITE_LIGHT_TYPE
+            ):
+                key = label.casefold()
+                if key in self.infinite:
+                    self.infinite[key].data.update(row)
+                else:
+                    self.infinite[key] = LocalInfiniteLight(
+                        self, {**row, "cloud_name": name}
+                    )
             elif kind == "switch":
                 self._add(LocalSwitch, name, row)
                 self._parse_extras(aqd_id, name, label, row)
@@ -481,3 +496,32 @@ class LocalButton(LocalDevice):
     async def press(self) -> None:
         """Send the action."""
         await self.system.client.command(self.aqd_id)
+
+
+class LocalInfiniteLight(LocalDevice):
+    """An Infinite WaterColors light AqualinkD drives over the iAqualink protocol."""
+
+    @property
+    def is_on(self) -> bool:
+        """Return whether AqualinkD reports the light on."""
+        return self.data.get("state") == "on"
+
+    async def turn_on(self, rgb: tuple[int, int, int], percentage: int | None) -> None:
+        """Switch on, then set the colour and brightness."""
+        red, green, blue = rgb
+        await self.system.client.command(f"{self.aqd_id}/set", 1)
+        await self.system.client.command(
+            f"{self.aqd_id}/rgb/set", (red << 16) | (green << 8) | blue
+        )
+        if percentage is not None:
+            await self.set_brightness(percentage)
+        self.data["state"] = "on"
+
+    async def turn_off(self) -> None:
+        """Switch off."""
+        await self.system.client.command(f"{self.aqd_id}/set", 0)
+        self.data["state"] = "off"
+
+    async def set_brightness(self, percentage: int) -> None:
+        """Set the brightness, 0-100."""
+        await self.system.client.command(f"{self.aqd_id}/brightness/set", percentage)

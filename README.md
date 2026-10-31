@@ -46,7 +46,7 @@ Local mode also adds what AqualinkD's own Home Assistant discovery offers:
 - **Timers:** buttons running on a panel timer carry `timer_active` and `timer_remaining` (seconds) attributes.
 - **Extra sensors** configured in AqualinkD appear as sensors.
 
-The iCL light zones and their watchdog still use the cloud in Local mode, because AqualinkD has no iCL zone support. Keep the iAquaLink credentials in place.
+**iCL light zones in Local mode:** AqualinkD 3.1.1 (dev) and later can drive Jandy Infinite WaterColors lights. Add one virtual button per zone in `aqualinkd.conf` with `light_mode=7`, the zone's `lightID`, and a label matching the zone name in the iAquaLink app (e.g. `Pool Lights`). AqualinkD needs `enable_iaqualink=yes` and an `extended_device_id` of 0x30 to 0x33. When a button's label matches a zone, `light.<zone>` sends on/off, RGB and brightness to AqualinkD, follows AqualinkD's on/off state, and pauses the cloud watchdog for that zone. If AqualinkD refuses or is down, the command falls back to the cloud's captured iCL sequence. Zones with no matching button stay on the cloud, so keep the iAquaLink credentials in place.
 
 Turn off AqualinkD's own MQTT discovery for Home Assistant, otherwise HA gets a second set of entities for the same equipment.
 
