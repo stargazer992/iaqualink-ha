@@ -17,6 +17,14 @@ STATUS_OPTIONS = [STATUS_ONLINE, STATUS_OFFLINE, STATUS_SERVICE]
 
 def system_status(coordinator: AqualinkDataUpdateCoordinator) -> str:
     """Return Service, Online, or Offline (also when the cloud can't be reached)."""
+    system = coordinator.system
+    if getattr(system, "NAME", None) == "aqualinkd":
+        text = getattr(system, "status_text", None) or ""
+        if text == "Service Mode":
+            return STATUS_SERVICE
+        if coordinator.last_update_success and system.online is True:
+            return STATUS_ONLINE
+        return STATUS_OFFLINE
     status = coordinator.icl.system_status if coordinator.icl is not None else None
     if status == SYSTEM_SERVICE:
         return STATUS_SERVICE
