@@ -22,8 +22,13 @@ from iaqualink.exception import (
 )
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_PASSWORD, CONF_USERNAME, Platform
-from homeassistant.core import HomeAssistant
+from homeassistant.const import (
+    CONF_PASSWORD,
+    CONF_USERNAME,
+    EVENT_HOMEASSISTANT_STARTED,
+    Platform,
+)
+from homeassistant.core import CoreState, Event, HomeAssistant
 from homeassistant.exceptions import (
     ConfigEntryAuthFailed,
     ConfigEntryError,
@@ -106,7 +111,48 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     await hass.http.async_register_static_paths(
         [StaticPathConfig(CARD_URL, str(CARD_PATH), True)]
     )
-    add_extra_js_url(hass, f"{CARD_URL}?v={integration.version}")
+    url = f"{CARD_URL}?v={integration.version}"
+
+    async def _register(_event: Event | None = None) -> None:
+        # A Lovelace resource loads after the scoped custom element registry
+        # polyfill; an extra JS URL can load before it and the card goes missing.
+        if not await _async_register_card_resource(hass, url):
+            add_extra_js_url(hass, url)
+
+    if hass.state is CoreState.running:
+        await _register()
+    else:
+        hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, _register)
+    return True
+
+
+async def _async_register_card_resource(hass: HomeAssistant, url: str) -> bool:
+    """Add or update the card's Lovelace resource; False if resources are YAML."""
+    from homeassistant.components.lovelace.const import (  # noqa: PLC0415
+        LOVELACE_DATA,
+        MODE_STORAGE,
+    )
+
+    lovelace = hass.data.get(LOVELACE_DATA)
+    if lovelace is None or lovelace.resource_mode != MODE_STORAGE:
+        return False
+    resources = lovelace.resources
+    await resources.async_get_info()
+    mine = [
+        item
+        for item in resources.async_items()
+        if str(item.get("url", "")).split("?")[0] == CARD_URL
+    ]
+    if not mine:
+        await resources.async_create_item({"res_type": "module", "url": url})
+        return True
+    first, *duplicates = mine
+    if first["url"] != url:
+        await resources.async_update_item(
+            first["id"], {"res_type": "module", "url": url}
+        )
+    for item in duplicates:
+        await resources.async_delete_item(item["id"])
     return True
 
 
