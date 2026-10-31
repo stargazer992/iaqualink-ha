@@ -1,0 +1,26 @@
+{
+  "domain": "iaqualink",
+  "name": "Jandy iAquaLink",
+  "codeowners": [
+    "@stargazer992"
+  ],
+  "config_flow": true,
+  "dhcp": [
+    {
+      "hostname": "iaqualink-*"
+    }
+  ],
+  "documentation": "https://github.com/stargazer992/iaqualink-ha",
+  "integration_type": "hub",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/stargazer992/iaqualink-ha/issues",
+  "loggers": [
+    "iaqualink"
+  ],
+  "requirements": [
+    "iaqualink==0.7.0",
+    "h2==4.3.0"
+  ],
+  "single_config_entry": true,
+  "version": "1.0.0"
+}

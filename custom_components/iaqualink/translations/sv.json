@@ -1,0 +1,52 @@
+{
+    "config": {
+        "abort": {
+            "already_configured": "Kontot \u00e4r redan konfigurerat",
+            "already_in_progress": "Detta konfigureras redan. Slutf\u00f6r den befintliga konfigurationen innan du b\u00f6rjar igen.",
+            "reauth_successful": "\u00c5terautentisering lyckades",
+            "reconfigure_successful": "Omkonfigureringen lyckades"
+        },
+        "error": {
+            "cannot_connect": "Det gick inte att ansluta",
+            "invalid_auth": "Ogiltig autentisering"
+        },
+        "step": {
+            "reauth_confirm": {
+                "data": {
+                    "password": "L\u00f6senord",
+                    "username": "Anv\u00e4ndarnamn"
+                },
+                "data_description": {
+                    "password": "L\u00f6senordet som \u00e4r kopplat till ditt konto.",
+                    "username": "E-postadressen som anv\u00e4nds f\u00f6r att logga in p\u00e5 ditt konto med iAquaLink-appen eller webbplatsen."
+                },
+                "description": "V\u00e4nligen ange anv\u00e4ndarnamn och l\u00f6senord f\u00f6r ditt iAqualink-konto.",
+                "title": "\u00c5terautentisera iAquaLink"
+            },
+            "reconfigure": {
+                "data": {
+                    "password": "L\u00f6senord",
+                    "username": "Anv\u00e4ndarnamn"
+                },
+                "data_description": {
+                    "password": "L\u00f6senordet som \u00e4r kopplat till ditt konto.",
+                    "username": "E-postadressen som anv\u00e4nds f\u00f6r att logga in p\u00e5 ditt konto med iAquaLink-appen eller webbplatsen."
+                },
+                "description": "V\u00e4nligen ange anv\u00e4ndarnamn och l\u00f6senord f\u00f6r ditt iAqualink-konto.",
+                "title": "\u00c5teranslut iAquaLink"
+            },
+            "user": {
+                "data": {
+                    "password": "L\u00f6senord",
+                    "username": "Anv\u00e4ndarnamn"
+                },
+                "data_description": {
+                    "password": "L\u00f6senordet som \u00e4r kopplat till ditt konto.",
+                    "username": "E-postadressen som anv\u00e4nds f\u00f6r att logga in p\u00e5 ditt konto med iAquaLink-appen eller webbplatsen."
+                },
+                "description": "V\u00e4nligen ange anv\u00e4ndarnamn och l\u00f6senord f\u00f6r ditt iAqualink-konto.",
+                "title": "Anslut till iAqualink"
+            }
+        }
+    }
+}

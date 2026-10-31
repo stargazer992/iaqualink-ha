@@ -1,0 +1,45 @@
+{
+    "config": {
+        "abort": {
+            "already_configured": "T\u00e1 an cuntas cumraithe cheana f\u00e9in",
+            "reauth_successful": "D'\u00e9irigh leis an athfh\u00edordheimhni\u00fa"
+        },
+        "error": {
+            "cannot_connect": "Theip ar an nascadh",
+            "invalid_auth": "F\u00edordheimhni\u00fa neamhbhail\u00ed"
+        },
+        "step": {
+            "reauth_confirm": {
+                "data": {
+                    "password": "Pasfhocal",
+                    "username": "Ainm \u00fas\u00e1ideora"
+                },
+                "data_description": {
+                    "password": "An focal faire a bhaineann le do chuntas.",
+                    "username": "An seoladh r\u00edomhphoist a \u00fas\u00e1ideadh chun s\u00edni\u00fa isteach i do chuntas ag baint \u00fas\u00e1ide as an aip n\u00f3 an su\u00edomh Gr\u00e9as\u00e1in iAquaLink."
+                }
+            },
+            "reconfigure": {
+                "data": {
+                    "password": "Pasfhocal",
+                    "username": "Ainm \u00fas\u00e1ideora"
+                },
+                "data_description": {
+                    "password": "An focal faire a bhaineann le do chuntas.",
+                    "username": "An seoladh r\u00edomhphoist a \u00fas\u00e1ideadh chun s\u00edni\u00fa isteach i do chuntas ag baint \u00fas\u00e1ide as an aip n\u00f3 an su\u00edomh Gr\u00e9as\u00e1in iAquaLink."
+                },
+                "title": "Athcheangail iAquaLink"
+            },
+            "user": {
+                "data": {
+                    "password": "Pasfhocal",
+                    "username": "Ainm \u00fas\u00e1ideora"
+                },
+                "data_description": {
+                    "password": "An focal faire a bhaineann le do chuntas.",
+                    "username": "An seoladh r\u00edomhphoist a \u00fas\u00e1ideadh chun s\u00edni\u00fa isteach i do chuntas ag baint \u00fas\u00e1ide as an aip n\u00f3 an su\u00edomh Gr\u00e9as\u00e1in iAquaLink."
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,42 @@
+{
+    "config": {
+        "abort": {
+            "already_configured": "Kontua dagoeneko konfiguratuta dago",
+            "reauth_successful": "Berrautortzea arrakastatsua izan da",
+            "reconfigure_successful": "Birkonfigurazioa arrakastatsua izan da"
+        },
+        "error": {
+            "cannot_connect": "Konexioak huts egin du",
+            "invalid_auth": "Autentifikazio baliogabea"
+        },
+        "step": {
+            "reauth_confirm": {
+                "data": {
+                    "password": "Pasahitza",
+                    "username": "Erabiltzaile-izena"
+                },
+                "data_description": {
+                    "password": "Zure kontuari lotutako pasahitza."
+                }
+            },
+            "reconfigure": {
+                "data": {
+                    "password": "Pasahitza",
+                    "username": "Erabiltzaile-izena"
+                },
+                "data_description": {
+                    "password": "Zure kontuari lotutako pasahitza."
+                }
+            },
+            "user": {
+                "data": {
+                    "password": "Pasahitza",
+                    "username": "Erabiltzaile-izena"
+                },
+                "data_description": {
+                    "password": "Zure kontuari lotutako pasahitza."
+                }
+            }
+        }
+    }
+}

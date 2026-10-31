@@ -1,0 +1,52 @@
+{
+    "config": {
+        "abort": {
+            "already_configured": "Nalog je ve\u0107 pode\u0161en",
+            "already_in_progress": "Ovo se ve\u0107 konfiguri\u0161e. Zavr\u0161ite postoje\u0107e pode\u0161avanje pre nego \u0161to poku\u0161ate ponovo.",
+            "reauth_successful": "Ponovna prijava je uspe\u0161na",
+            "reconfigure_successful": "Ponovno pode\u0161avanje je uspe\u0161no"
+        },
+        "error": {
+            "cannot_connect": "Povezivanje nije uspelo",
+            "invalid_auth": "Neva\u017ee\u0107i podaci za prijavu"
+        },
+        "step": {
+            "reauth_confirm": {
+                "data": {
+                    "password": "Lozinka",
+                    "username": "Korisni\u010dko ime"
+                },
+                "data_description": {
+                    "password": "Lozinka povezana sa va\u0161im nalogom.",
+                    "username": "E-adresa koja se koristi za prijavu na va\u0161 nalog putem iAquaLink aplikacije ili veb-sajta."
+                },
+                "description": "Unesite korisni\u010dko ime i lozinku za va\u0161 iAqualink nalog",
+                "title": "Ponovo prijavi iAqualink"
+            },
+            "reconfigure": {
+                "data": {
+                    "password": "Lozinka",
+                    "username": "Korisni\u010dko ime"
+                },
+                "data_description": {
+                    "password": "Lozinka povezana sa va\u0161im nalogom.",
+                    "username": "E-adresa koja se koristi za prijavu na va\u0161 nalog putem iAquaLink aplikacije ili veb-sajta."
+                },
+                "description": "Unesite korisni\u010dko ime i lozinku za va\u0161 iAqualink nalog",
+                "title": "Ponovo pove\u017eite iAquaLink"
+            },
+            "user": {
+                "data": {
+                    "password": "Lozinka",
+                    "username": "Korisni\u010dko ime"
+                },
+                "data_description": {
+                    "password": "Lozinka povezana sa va\u0161im nalogom.",
+                    "username": "E-adresa koja se koristi za prijavu na va\u0161 nalog putem iAquaLink aplikacije ili veb-sajta."
+                },
+                "description": "Unesite korisni\u010dko ime i lozinku za va\u0161 iAqualink nalog",
+                "title": "Pove\u017eite se sa iAqualink"
+            }
+        }
+    }
+}

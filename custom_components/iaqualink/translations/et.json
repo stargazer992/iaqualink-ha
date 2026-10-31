@@ -1,0 +1,52 @@
+{
+    "config": {
+        "abort": {
+            "already_configured": "Kasutaja on juba seadistatud",
+            "already_in_progress": "Seda juba konfigureeritakse. Enne uuesti alustamist l\u00f5peta olemasolev konfigureerimine.",
+            "reauth_successful": "Taastuvastamine \u00f5nnestus",
+            "reconfigure_successful": "\u00dcmberseadistamine \u00f5nnestus"
+        },
+        "error": {
+            "cannot_connect": "\u00dchendamine nurjus",
+            "invalid_auth": "Tuvastamine nurjus"
+        },
+        "step": {
+            "reauth_confirm": {
+                "data": {
+                    "password": "Salas\u00f5na",
+                    "username": "Kasutajanimi"
+                },
+                "data_description": {
+                    "password": "Kontoga seotud parool.",
+                    "username": "iAquaLinki rakenduse v\u00f5i veebisaidi kaudu oma kontole sisselogimiseks kasutatud e-posti aadress."
+                },
+                "description": "Sisesta oma iAquaLinki konto kasutajanimi ja salas\u00f5na.",
+                "title": "Taastuvasta iAquaLink"
+            },
+            "reconfigure": {
+                "data": {
+                    "password": "Salas\u00f5na",
+                    "username": "Kasutajanimi"
+                },
+                "data_description": {
+                    "password": "Kontoga seotud parool.",
+                    "username": "iAquaLinki rakenduse v\u00f5i veebisaidi kaudu oma kontole sisselogimiseks kasutatud e-posti aadress."
+                },
+                "description": "Sisesta oma iAquaLinki konto kasutajanimi ja salas\u00f5na.",
+                "title": "Taas\u00fchenda iAquaLink"
+            },
+            "user": {
+                "data": {
+                    "password": "Salas\u00f5na",
+                    "username": "Kasutajanimi"
+                },
+                "data_description": {
+                    "password": "Kontoga seotud parool.",
+                    "username": "iAquaLinki rakenduse v\u00f5i veebisaidi kaudu oma kontole sisselogimiseks kasutatud e-posti aadress."
+                },
+                "description": "Sisesta oma iAquaLinki konto kasutajanimi ja salas\u00f5na.",
+                "title": "Loo \u00fchendus iAquaLink-iga"
+            }
+        }
+    }
+}

@@ -1,0 +1,52 @@
+{
+    "config": {
+        "abort": {
+            "already_configured": "Konto ist bereits konfiguriert",
+            "already_in_progress": "Die Konfiguration l\u00e4uft bereits. Schlie\u00dfe die bestehende Konfiguration ab, bevor du erneut beginnst.",
+            "reauth_successful": "Die erneute Authentifizierung war erfolgreich",
+            "reconfigure_successful": "Die Neukonfiguration war erfolgreich"
+        },
+        "error": {
+            "cannot_connect": "Verbindung fehlgeschlagen",
+            "invalid_auth": "Ung\u00fcltige Authentifizierung"
+        },
+        "step": {
+            "reauth_confirm": {
+                "data": {
+                    "password": "Passwort",
+                    "username": "Benutzername"
+                },
+                "data_description": {
+                    "password": "Das mit deinem Konto verbundene Passwort.",
+                    "username": "Die E-Mail-Adresse, mit der du dich \u00fcber die iAquaLink-App oder die Website bei deinem Konto anmeldest."
+                },
+                "description": "Bitte gib den Benutzernamen und das Passwort f\u00fcr dein iAquaLink-Konto ein.",
+                "title": "iAquaLink erneut authentifizieren"
+            },
+            "reconfigure": {
+                "data": {
+                    "password": "Passwort",
+                    "username": "Benutzername"
+                },
+                "data_description": {
+                    "password": "Das mit deinem Konto verbundene Passwort.",
+                    "username": "Die E-Mail-Adresse, mit der du dich \u00fcber die iAquaLink-App oder die Website bei deinem Konto anmeldest."
+                },
+                "description": "Bitte gib den Benutzernamen und das Passwort f\u00fcr dein iAquaLink-Konto ein.",
+                "title": "iAquaLink neu verbinden"
+            },
+            "user": {
+                "data": {
+                    "password": "Passwort",
+                    "username": "Benutzername"
+                },
+                "data_description": {
+                    "password": "Das mit deinem Konto verbundene Passwort.",
+                    "username": "Die E-Mail-Adresse, mit der du dich \u00fcber die iAquaLink-App oder die Website bei deinem Konto anmeldest."
+                },
+                "description": "Bitte gib den Benutzernamen und das Passwort f\u00fcr dein iAquaLink-Konto ein.",
+                "title": "Mit iAquaLink verbinden"
+            }
+        }
+    }
+}

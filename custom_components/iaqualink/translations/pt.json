@@ -1,0 +1,52 @@
+{
+    "config": {
+        "abort": {
+            "already_configured": "Conta j\u00e1 configurada",
+            "already_in_progress": "Isto j\u00e1 est\u00e1 a ser configurado. Conclua a configura\u00e7\u00e3o atual antes de recome\u00e7ar.",
+            "reauth_successful": "Reautentica\u00e7\u00e3o bem sucedida",
+            "reconfigure_successful": "A reconfigura\u00e7\u00e3o foi bem sucedida"
+        },
+        "error": {
+            "cannot_connect": "A liga\u00e7\u00e3o falhou",
+            "invalid_auth": "Autentica\u00e7\u00e3o inv\u00e1lida"
+        },
+        "step": {
+            "reauth_confirm": {
+                "data": {
+                    "password": "Palavra-passe",
+                    "username": "Nome de Utilizador"
+                },
+                "data_description": {
+                    "password": "A palavra-passe associada \u00e0 sua conta.",
+                    "username": "O endere\u00e7o de correio eletr\u00f3nico utilizado para iniciar sess\u00e3o na sua conta utilizando a aplica\u00e7\u00e3o ou o s\u00edtio Web iAquaLink."
+                },
+                "description": "Introduza o nome de utilizador e a palavra-passe da sua conta iAquaLink.",
+                "title": "Reautenticar iAquaLink"
+            },
+            "reconfigure": {
+                "data": {
+                    "password": "Palavra-passe",
+                    "username": "Nome de Utilizador"
+                },
+                "data_description": {
+                    "password": "A palavra-passe associada \u00e0 sua conta.",
+                    "username": "O endere\u00e7o de correio eletr\u00f3nico utilizado para iniciar sess\u00e3o na sua conta utilizando a aplica\u00e7\u00e3o ou o s\u00edtio Web iAquaLink."
+                },
+                "description": "Introduza o nome de utilizador e a palavra-passe da sua conta iAquaLink.",
+                "title": "Voltar a ligar o iAquaLink"
+            },
+            "user": {
+                "data": {
+                    "password": "Palavra-passe",
+                    "username": "Nome de Utilizador"
+                },
+                "data_description": {
+                    "password": "A palavra-passe associada \u00e0 sua conta.",
+                    "username": "O endere\u00e7o de correio eletr\u00f3nico utilizado para iniciar sess\u00e3o na sua conta utilizando a aplica\u00e7\u00e3o ou o s\u00edtio Web iAquaLink."
+                },
+                "description": "Introduza o nome de utilizador e a palavra-passe da sua conta iAquaLink.",
+                "title": "Ligar ao iAquaLink"
+            }
+        }
+    }
+}

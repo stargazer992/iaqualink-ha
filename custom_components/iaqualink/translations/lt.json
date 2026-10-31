@@ -1,0 +1,52 @@
+{
+    "config": {
+        "abort": {
+            "already_configured": "Paskyra jau sukonfig\u016bruota",
+            "already_in_progress": "Tai jau konfig\u016bruojama. Prie\u0161 prad\u0117dami i\u0161 naujo, u\u017ebaikite esam\u0105 konfig\u016bracij\u0105.",
+            "reauth_successful": "Pakartotinis autentifikavimas buvo s\u0117kmingas",
+            "reconfigure_successful": "Perkonfig\u016bravimas s\u0117kmingas"
+        },
+        "error": {
+            "cannot_connect": "Nepavyko prisijungti",
+            "invalid_auth": "Neteisingas autentifikavimas"
+        },
+        "step": {
+            "reauth_confirm": {
+                "data": {
+                    "password": "Slapta\u017eodis",
+                    "username": "Naudotojo vardas"
+                },
+                "data_description": {
+                    "password": "Su j\u016bs\u0173 paskyra susietas slapta\u017eodis.",
+                    "username": "El. pa\u0161to adresas, naudotas prisijungiant prie paskyros naudojant iAquaLink program\u0117l\u0119 arba svetain\u0119."
+                },
+                "description": "\u012eveskite savo iAquaLink paskyros vartotojo vard\u0105 ir slapta\u017eod\u012f.",
+                "title": "Pakartotinis iAquaLink autentifikavimas"
+            },
+            "reconfigure": {
+                "data": {
+                    "password": "Slapta\u017eodis",
+                    "username": "Naudotojo vardas"
+                },
+                "data_description": {
+                    "password": "Su j\u016bs\u0173 paskyra susietas slapta\u017eodis.",
+                    "username": "El. pa\u0161to adresas, naudotas prisijungiant prie paskyros naudojant iAquaLink program\u0117l\u0119 arba svetain\u0119."
+                },
+                "description": "\u012eveskite savo iAquaLink paskyros vartotojo vard\u0105 ir slapta\u017eod\u012f.",
+                "title": "I\u0161 naujo prijunkite iAquaLink"
+            },
+            "user": {
+                "data": {
+                    "password": "Slapta\u017eodis",
+                    "username": "Naudotojo vardas"
+                },
+                "data_description": {
+                    "password": "Su j\u016bs\u0173 paskyra susietas slapta\u017eodis.",
+                    "username": "El. pa\u0161to adresas, naudotas prisijungiant prie paskyros naudojant iAquaLink program\u0117l\u0119 arba svetain\u0119."
+                },
+                "description": "\u012eveskite savo iAquaLink paskyros vartotojo vard\u0105 ir slapta\u017eod\u012f.",
+                "title": "Prisijungimas prie iAquaLink"
+            }
+        }
+    }
+}

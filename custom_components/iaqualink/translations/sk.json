@@ -1,0 +1,52 @@
+{
+    "config": {
+        "abort": {
+            "already_configured": "\u00da\u010det je u\u017e nakonfigurovan\u00fd",
+            "already_in_progress": "Toto sa u\u017e konfiguruje. Pred op\u00e4tovn\u00fdm spusten\u00edm dokon\u010dite existuj\u00facu konfigur\u00e1ciu.",
+            "reauth_successful": "Op\u00e4tovn\u00e9 overenie bolo \u00faspe\u0161n\u00e9",
+            "reconfigure_successful": "Rekonfigur\u00e1cia bola \u00faspe\u0161n\u00e1"
+        },
+        "error": {
+            "cannot_connect": "Nepodarilo sa pripoji\u0165",
+            "invalid_auth": "Neplatn\u00e9 overenie"
+        },
+        "step": {
+            "reauth_confirm": {
+                "data": {
+                    "password": "Heslo",
+                    "username": "Pou\u017e\u00edvate\u013esk\u00e9 meno"
+                },
+                "data_description": {
+                    "password": "Heslo spojen\u00e9 s va\u0161\u00edm \u00fa\u010dtom.",
+                    "username": "E-mailov\u00e1 adresa pou\u017eit\u00e1 na prihl\u00e1senie do v\u00e1\u0161ho \u00fa\u010dtu pomocou aplik\u00e1cie alebo webovej str\u00e1nky iAquaLink."
+                },
+                "description": "Zadajte pou\u017e\u00edvate\u013esk\u00e9 meno a heslo pre svoje konto iAquaLink.",
+                "title": "Op\u00e4tovn\u00e9 overenie iAquaLink"
+            },
+            "reconfigure": {
+                "data": {
+                    "password": "Heslo",
+                    "username": "Pou\u017e\u00edvate\u013esk\u00e9 meno"
+                },
+                "data_description": {
+                    "password": "Heslo spojen\u00e9 s va\u0161\u00edm \u00fa\u010dtom.",
+                    "username": "E-mailov\u00e1 adresa pou\u017eit\u00e1 na prihl\u00e1senie do v\u00e1\u0161ho \u00fa\u010dtu pomocou aplik\u00e1cie alebo webovej str\u00e1nky iAquaLink."
+                },
+                "description": "Zadajte pou\u017e\u00edvate\u013esk\u00e9 meno a heslo pre svoje konto iAquaLink.",
+                "title": "Op\u00e4tovn\u00e9 pripojenie iAquaLink"
+            },
+            "user": {
+                "data": {
+                    "password": "Heslo",
+                    "username": "Pou\u017e\u00edvate\u013esk\u00e9 meno"
+                },
+                "data_description": {
+                    "password": "Heslo spojen\u00e9 s va\u0161\u00edm \u00fa\u010dtom.",
+                    "username": "E-mailov\u00e1 adresa pou\u017eit\u00e1 na prihl\u00e1senie do v\u00e1\u0161ho \u00fa\u010dtu pomocou aplik\u00e1cie alebo webovej str\u00e1nky iAquaLink."
+                },
+                "description": "Zadajte pou\u017e\u00edvate\u013esk\u00e9 meno a heslo pre svoje konto iAquaLink.",
+                "title": "Pripojenie k iAquaLink"
+            }
+        }
+    }
+}

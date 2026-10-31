@@ -1,0 +1,51 @@
+{
+    "config": {
+        "abort": {
+            "already_configured": "A fi\u00f3k m\u00e1r konfigur\u00e1lva van",
+            "reauth_successful": "Az \u00fajrahiteles\u00edt\u00e9s sikeres volt",
+            "reconfigure_successful": "Az \u00fajrakonfigur\u00e1l\u00e1s sikeres volt"
+        },
+        "error": {
+            "cannot_connect": "Sikertelen csatlakoz\u00e1s",
+            "invalid_auth": "\u00c9rv\u00e9nytelen hiteles\u00edt\u00e9s"
+        },
+        "step": {
+            "reauth_confirm": {
+                "data": {
+                    "password": "Jelsz\u00f3",
+                    "username": "Felhaszn\u00e1l\u00f3n\u00e9v"
+                },
+                "data_description": {
+                    "password": "A fi\u00f3kj\u00e1hoz tartoz\u00f3 jelsz\u00f3.",
+                    "username": "Az iAquaLink alkalmaz\u00e1sban vagy weboldalon a bejelentkez\u00e9shez haszn\u00e1lt e-mail c\u00edm."
+                },
+                "description": "K\u00e9rem, adja meg az iAquaLink-fi\u00f3kj\u00e1nak felhaszn\u00e1l\u00f3nev\u00e9t \u00e9s jelszav\u00e1t.",
+                "title": "iAquaLink \u00fajrahiteles\u00edt\u00e9se"
+            },
+            "reconfigure": {
+                "data": {
+                    "password": "Jelsz\u00f3",
+                    "username": "Felhaszn\u00e1l\u00f3n\u00e9v"
+                },
+                "data_description": {
+                    "password": "A fi\u00f3kj\u00e1hoz tartoz\u00f3 jelsz\u00f3.",
+                    "username": "Az iAquaLink alkalmaz\u00e1sban vagy weboldalon a bejelentkez\u00e9shez haszn\u00e1lt e-mail c\u00edm."
+                },
+                "description": "K\u00e9rem, adja meg az iAquaLink-fi\u00f3kj\u00e1nak felhaszn\u00e1l\u00f3nev\u00e9t \u00e9s jelszav\u00e1t.",
+                "title": "iAquaLink \u00fajracsatlakoztat\u00e1sa"
+            },
+            "user": {
+                "data": {
+                    "password": "Jelsz\u00f3",
+                    "username": "Felhaszn\u00e1l\u00f3n\u00e9v"
+                },
+                "data_description": {
+                    "password": "A fi\u00f3kj\u00e1hoz tartoz\u00f3 jelsz\u00f3.",
+                    "username": "Az iAquaLink alkalmaz\u00e1sban vagy weboldalon a bejelentkez\u00e9shez haszn\u00e1lt e-mail c\u00edm."
+                },
+                "description": "K\u00e9rem, adja meg az iAquaLink-fi\u00f3kj\u00e1nak felhaszn\u00e1l\u00f3nev\u00e9t \u00e9s jelszav\u00e1t.",
+                "title": "Csatlakoz\u00e1s az iAquaLinkhez"
+            }
+        }
+    }
+}

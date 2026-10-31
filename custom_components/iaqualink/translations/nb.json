@@ -1,0 +1,43 @@
+{
+    "config": {
+        "abort": {
+            "already_configured": "Kontoen er allerede konfigurert",
+            "already_in_progress": "Konfigurasjonsflyten er allerede i gang",
+            "reconfigure_successful": "Rekonfigurasjonen var vellykket"
+        },
+        "error": {
+            "cannot_connect": "Tilkobling mislyktes",
+            "invalid_auth": "Ugyldig godkjenning"
+        },
+        "step": {
+            "reauth_confirm": {
+                "data_description": {
+                    "password": "Passordet som er knyttet til kontoen din.",
+                    "username": "E-postadressen som brukes til \u00e5 logge p\u00e5 kontoen din med iAquaLink-appen eller -nettstedet."
+                }
+            },
+            "reconfigure": {
+                "data": {
+                    "password": "Passord",
+                    "username": "Brukernavn"
+                },
+                "data_description": {
+                    "password": "Passordet som er knyttet til kontoen din.",
+                    "username": "E-postadressen som brukes til \u00e5 logge p\u00e5 kontoen din med iAquaLink-appen eller -nettstedet."
+                },
+                "description": "Vennligst skriv inn brukernavnet og passordet for iAquaLink-kontoen din.",
+                "title": "Koble til iAquaLink p\u00e5 nytt"
+            },
+            "user": {
+                "data": {
+                    "password": "Passord",
+                    "username": "Brukernavn"
+                },
+                "data_description": {
+                    "password": "Passordet som er knyttet til kontoen din.",
+                    "username": "E-postadressen som brukes til \u00e5 logge p\u00e5 kontoen din med iAquaLink-appen eller -nettstedet."
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,45 @@
+{
+    "config": {
+        "abort": {
+            "already_configured": "\u8d26\u6237\u5df2\u914d\u7f6e",
+            "reauth_successful": "\u91cd\u65b0\u8ba4\u8bc1\u6210\u529f",
+            "reconfigure_successful": "\u91cd\u65b0\u914d\u7f6e\u6210\u529f"
+        },
+        "error": {
+            "cannot_connect": "\u8fde\u63a5\u5931\u8d25",
+            "invalid_auth": "\u8eab\u4efd\u9a8c\u8bc1\u65e0\u6548"
+        },
+        "step": {
+            "reauth_confirm": {
+                "data": {
+                    "password": "\u5bc6\u7801",
+                    "username": "\u7528\u6237\u540d"
+                },
+                "data_description": {
+                    "password": "\u4e0e\u60a8\u8d26\u6237\u5173\u8054\u7684\u5bc6\u7801\u3002",
+                    "username": "\u60a8\u4f7f\u7528 iAquaLink \u5e94\u7528\u6216\u7f51\u7ad9\u767b\u5f55\u8d26\u6237\u65f6\u4f7f\u7528\u7684\u7535\u5b50\u90ae\u4ef6\u5730\u5740\u3002"
+                }
+            },
+            "reconfigure": {
+                "data": {
+                    "password": "\u5bc6\u7801",
+                    "username": "\u7528\u6237\u540d"
+                },
+                "data_description": {
+                    "password": "\u4e0e\u60a8\u8d26\u6237\u5173\u8054\u7684\u5bc6\u7801\u3002",
+                    "username": "\u60a8\u4f7f\u7528 iAquaLink \u5e94\u7528\u6216\u7f51\u7ad9\u767b\u5f55\u8d26\u6237\u65f6\u4f7f\u7528\u7684\u7535\u5b50\u90ae\u4ef6\u5730\u5740\u3002"
+                }
+            },
+            "user": {
+                "data": {
+                    "password": "\u5bc6\u7801",
+                    "username": "\u7528\u6237\u540d"
+                },
+                "data_description": {
+                    "password": "\u4e0e\u60a8\u8d26\u6237\u5173\u8054\u7684\u5bc6\u7801\u3002",
+                    "username": "\u60a8\u4f7f\u7528 iAquaLink \u5e94\u7528\u6216\u7f51\u7ad9\u767b\u5f55\u8d26\u6237\u65f6\u4f7f\u7528\u7684\u7535\u5b50\u90ae\u4ef6\u5730\u5740\u3002"
+                }
+            }
+        }
+    }
+}
