@@ -41,6 +41,15 @@ Zone state comes from the `icl_info_list` in get_devices, or from `get_icl_info`
 
 The Aux relay that powers the lights (for example `switch.pool_light`) is still a separate switch.
 
+### Watchdog
+
+Every 15 minutes the integration checks each zone that reports its state. If a zone isn't in the state it was last told to be in (or restored to after a restart), the command is sent again: the full turn-on sequence plus the zone's brightness, or off. 15 s later the zone is read back.
+
+- **No retries while the system is down.** Nothing is sent while the system is unavailable or offline (for example when the pool's Wi-Fi is shaky), or while the home screen reports a status other than `Online`, such as `Service` (Service mode). If the system drops out while a retry is running, the retry isn't counted as failed.
+- **Resuming:** once the system is back online, the next check runs after one minute.
+- **Alerts:** after two failed checks in a row a persistent notification is raised; it is dismissed once the zone is back in sync. Each resend fires an `iaqualink_icl_watchdog` event (`zone`, `desired`, `result`: `fixed` or `failed`, `failures`) that automations can use, for example to send a phone notification.
+- Zones reported `absent` (often the spa) can't be checked, so the watchdog leaves them alone.
+
 ## Pool & Spa light card
 
 ```yaml
@@ -59,7 +68,7 @@ It has the same look and controls as `fleur-pool-light-card` v1.2.0, but it driv
 1. Install this integration and restart.
 2. Check that `light.pool` and `light.spa` show the right state. Turn one on and off from the entity dialog.
 3. In the dashboard, change `type: custom:fleur-pool-light-card` to `type: custom:iaqualink-pool-light-card`. Add `pool_entity`/`spa_entity` if your zones have other names.
-4. Once you're happy with it, turn off the PyScript light automations and remove the old card resource.
+4. Once you're happy with it, turn off the PyScript light automations and watchdog (the integration has its own), and remove the old card resource. Running both watchdogs would send every retry twice.
 
 You can go back at any time by removing this integration from HACS and restarting; the built-in integration takes over again.
 
