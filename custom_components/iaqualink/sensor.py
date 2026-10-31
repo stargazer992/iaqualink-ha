@@ -64,6 +64,8 @@ class HassAqualinkSensor(AqualinkEntity[AqualinkSensor], SensorEntity):
     ) -> None:
         """Initialize AquaLink sensor."""
         super().__init__(coordinator, dev)
+        if unit := getattr(dev, "ha_unit", None):
+            self._attr_native_unit_of_measurement = unit
         if not dev.name.endswith("_temp"):
             return
         self._attr_device_class = SensorDeviceClass.TEMPERATURE
@@ -74,7 +76,7 @@ class HassAqualinkSensor(AqualinkEntity[AqualinkSensor], SensorEntity):
 
     @property
     @override
-    def native_value(self) -> int | float | None:
+    def native_value(self) -> int | float | str | None:
         """Return the state of the sensor."""
         if self.dev.state == "":
             return None
@@ -82,4 +84,8 @@ class HassAqualinkSensor(AqualinkEntity[AqualinkSensor], SensorEntity):
         try:
             return int(self.dev.state)
         except ValueError:
+            pass
+        try:
             return float(self.dev.state)
+        except ValueError:
+            return self.dev.state

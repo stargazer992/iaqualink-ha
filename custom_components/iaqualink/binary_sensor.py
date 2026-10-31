@@ -68,6 +68,8 @@ class HassAqualinkBinarySensor(
         super().__init__(coordinator, dev)
         if dev.label == "Freeze Protection":
             self._attr_device_class = BinarySensorDeviceClass.COLD
+        elif dev.name == "battery_low":
+            self._attr_device_class = BinarySensorDeviceClass.BATTERY
 
     @property
     @override

@@ -54,6 +54,18 @@ class HassAqualinkSwitch(AqualinkEntity[AqualinkSwitch], SwitchEntity):
         """Return whether the switch is on or not."""
         return self.dev.is_on
 
+    @property
+    @override
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Return AqualinkD's panel timer for the button, if it has one."""
+        data = getattr(self.dev, "data", {})
+        if "timer_active" not in data:
+            return None
+        attributes: dict[str, Any] = {"timer_active": data["timer_active"] == "on"}
+        if "timer_duration" in data:
+            attributes["timer_remaining"] = int(data["timer_duration"])
+        return attributes
+
     @refresh_system
     @override
     async def async_turn_on(self, **kwargs: Any) -> None:
