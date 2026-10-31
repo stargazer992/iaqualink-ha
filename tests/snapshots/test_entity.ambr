@@ -50,6 +50,57 @@
     'state': 'on',
   })
 # ---
+# name: test_setup[binary_sensor.pool_service_mode-entry]
+  EntityRegistryEntrySnapshot({
+    'aliases': list([
+      None,
+    ]),
+    'area_id': None,
+    'capabilities': None,
+    'config_entry_id': <ANY>,
+    'config_subentry_id': <ANY>,
+    'device_class': None,
+    'device_id': <ANY>,
+    'disabled_by': None,
+    'domain': 'binary_sensor',
+    'entity_category': None,
+    'entity_id': 'binary_sensor.pool_service_mode',
+    'has_entity_name': True,
+    'hidden_by': None,
+    'icon': None,
+    'id': <ANY>,
+    'labels': set({
+    }),
+    'name': None,
+    'object_id_base': 'Service mode',
+    'options': dict({
+    }),
+    'original_device_class': None,
+    'original_icon': 'mdi:account-wrench',
+    'original_name': 'Service mode',
+    'platform': 'iaqualink',
+    'previous_unique_id': None,
+    'suggested_object_id': None,
+    'supported_features': 0,
+    'translation_key': None,
+    'unique_id': 'SN00001_service_mode',
+    'unit_of_measurement': None,
+  })
+# ---
+# name: test_setup[binary_sensor.pool_service_mode-state]
+  StateSnapshot({
+    'attributes': ReadOnlyDict({
+      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Pool Service mode',
+      <EntityStateAttribute.ICON: 'icon'>: 'mdi:account-wrench',
+    }),
+    'context': <ANY>,
+    'entity_id': 'binary_sensor.pool_service_mode',
+    'last_changed': <ANY>,
+    'last_reported': <ANY>,
+    'last_updated': <ANY>,
+    'state': 'off',
+  })
+# ---
 # name: test_setup[climate.pool_set_point-entry]
   EntityRegistryEntrySnapshot({
     'aliases': list([
@@ -226,6 +277,69 @@
     'last_reported': <ANY>,
     'last_updated': <ANY>,
     'state': '7.2',
+  })
+# ---
+# name: test_setup[sensor.pool_system_status-entry]
+  EntityRegistryEntrySnapshot({
+    'aliases': list([
+      None,
+    ]),
+    'area_id': None,
+    'capabilities': dict({
+      <SensorEntityCapabilityAttribute.OPTIONS: 'options'>: list([
+        'Online',
+        'Offline',
+        'Service',
+      ]),
+    }),
+    'config_entry_id': <ANY>,
+    'config_subentry_id': <ANY>,
+    'device_class': None,
+    'device_id': <ANY>,
+    'disabled_by': None,
+    'domain': 'sensor',
+    'entity_category': None,
+    'entity_id': 'sensor.pool_system_status',
+    'has_entity_name': True,
+    'hidden_by': None,
+    'icon': None,
+    'id': <ANY>,
+    'labels': set({
+    }),
+    'name': None,
+    'object_id_base': 'System status',
+    'options': dict({
+    }),
+    'original_device_class': <SensorDeviceClass.ENUM: 'enum'>,
+    'original_icon': 'mdi:pool',
+    'original_name': 'System status',
+    'platform': 'iaqualink',
+    'previous_unique_id': None,
+    'suggested_object_id': None,
+    'supported_features': 0,
+    'translation_key': None,
+    'unique_id': 'SN00001_system_status',
+    'unit_of_measurement': None,
+  })
+# ---
+# name: test_setup[sensor.pool_system_status-state]
+  StateSnapshot({
+    'attributes': ReadOnlyDict({
+      <EntityStateAttribute.DEVICE_CLASS: 'device_class'>: 'enum',
+      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Pool System status',
+      <EntityStateAttribute.ICON: 'icon'>: 'mdi:pool',
+      <SensorEntityCapabilityAttribute.OPTIONS: 'options'>: list([
+        'Online',
+        'Offline',
+        'Service',
+      ]),
+    }),
+    'context': <ANY>,
+    'entity_id': 'sensor.pool_system_status',
+    'last_changed': <ANY>,
+    'last_reported': <ANY>,
+    'last_updated': <ANY>,
+    'state': 'Online',
   })
 # ---
 # name: test_setup[switch.aux_1-entry]

@@ -21,6 +21,7 @@ from homeassistant.helpers import entity_registry as er
 
 from .conftest import (
     assert_platform_setup,
+    device_entity_ids,
     get_aqualink_device,
     get_aqualink_system,
     setup_entry,
@@ -58,7 +59,7 @@ async def _setup_binary_sensor(
     system.get_devices = AsyncMock(return_value={sensor.name: sensor})
     await setup_entry(hass, config_entry, system)
 
-    entity_ids = hass.states.async_entity_ids(BINARY_SENSOR_DOMAIN)
+    entity_ids = device_entity_ids(hass, BINARY_SENSOR_DOMAIN)
     assert len(entity_ids) == 1
     return entity_ids[0]
 
