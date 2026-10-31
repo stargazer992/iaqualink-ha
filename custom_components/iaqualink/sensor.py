@@ -12,6 +12,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from . import AqualinkConfigEntry
 from .coordinator import AqualinkDataUpdateCoordinator
 from .entity import AqualinkEntity
+from .status import STATUS_OPTIONS, AqualinkSystemEntity, system_status
 
 PARALLEL_UPDATES = 0
 
@@ -22,12 +23,37 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up discovered sensors."""
-    async_add_entities(
+    entities: list[SensorEntity] = [
         HassAqualinkSensor(
             config_entry.runtime_data.coordinators[dev.system.serial], dev
         )
         for dev in config_entry.runtime_data.sensors
+    ]
+    entities.extend(
+        HassAqualinkSystemStatusSensor(coordinator)
+        for coordinator in config_entry.runtime_data.coordinators.values()
+        if coordinator.icl is not None
     )
+    async_add_entities(entities)
+
+
+class HassAqualinkSystemStatusSensor(AqualinkSystemEntity, SensorEntity):
+    """Online, Offline or Service, as the iAquaLink app shows it."""
+
+    _attr_name = "System status"
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = STATUS_OPTIONS
+    _attr_icon = "mdi:pool"
+
+    def __init__(self, coordinator: AqualinkDataUpdateCoordinator) -> None:
+        """Initialize the status sensor."""
+        super().__init__(coordinator, "system_status")
+
+    @property
+    @override
+    def native_value(self) -> str:
+        """Return the system status."""
+        return system_status(self.coordinator)
 
 
 class HassAqualinkSensor(AqualinkEntity[AqualinkSensor], SensorEntity):

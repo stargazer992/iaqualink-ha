@@ -23,6 +23,10 @@ A custom version of Home Assistant's built-in [iAquaLink integration](https://ww
 2. Install **Jandy iAquaLink (iCL lights)** and restart Home Assistant.
 3. If iAquaLink is already set up, nothing else is needed. Otherwise, add it under **Settings > Devices & services**.
 
+## System status
+
+Each iAqua system gets a **System status** sensor (`Online`, `Offline` or `Service`, as the iAquaLink app's home screen reports it; also `Offline` when the cloud can't be reached) and a **Service mode** binary sensor. Both stay available while the system is down, so dashboards can show the outage.
+
 ## iCL lights
 
 Zones are named after the zone names in the iAquaLink app; with zones called "Pool" and "Spa" you get `light.pool` and `light.spa`.

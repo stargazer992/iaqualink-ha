@@ -19,6 +19,7 @@ from homeassistant.util.unit_system import US_CUSTOMARY_SYSTEM
 
 from .conftest import (
     assert_platform_setup,
+    device_entity_ids,
     get_aqualink_device,
     get_aqualink_system,
     setup_entry,
@@ -66,7 +67,7 @@ async def _setup_sensor(
 
     await setup_entry(hass, config_entry, system)
 
-    entity_ids = hass.states.async_entity_ids(SENSOR_DOMAIN)
+    entity_ids = device_entity_ids(hass, SENSOR_DOMAIN)
     assert len(entity_ids) == 1
     entity_id = entity_ids[0]
     entity_state = hass.states.get(entity_id)

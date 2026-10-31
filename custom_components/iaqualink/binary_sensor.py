@@ -14,6 +14,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from . import AqualinkConfigEntry
 from .coordinator import AqualinkDataUpdateCoordinator
 from .entity import AqualinkEntity
+from .status import STATUS_SERVICE, AqualinkSystemEntity, system_status
 
 PARALLEL_UPDATES = 0
 
@@ -24,12 +25,35 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up discovered binary sensors."""
-    async_add_entities(
+    entities: list[BinarySensorEntity] = [
         HassAqualinkBinarySensor(
             config_entry.runtime_data.coordinators[dev.system.serial], dev
         )
         for dev in config_entry.runtime_data.binary_sensors
+    ]
+    entities.extend(
+        HassAqualinkServiceModeSensor(coordinator)
+        for coordinator in config_entry.runtime_data.coordinators.values()
+        if coordinator.icl is not None
     )
+    async_add_entities(entities)
+
+
+class HassAqualinkServiceModeSensor(AqualinkSystemEntity, BinarySensorEntity):
+    """On while the controller is in Service mode."""
+
+    _attr_name = "Service mode"
+    _attr_icon = "mdi:account-wrench"
+
+    def __init__(self, coordinator: AqualinkDataUpdateCoordinator) -> None:
+        """Initialize the Service mode sensor."""
+        super().__init__(coordinator, "service_mode")
+
+    @property
+    @override
+    def is_on(self) -> bool:
+        """Return whether the controller is in Service mode."""
+        return system_status(self.coordinator) == STATUS_SERVICE
 
 
 class HassAqualinkBinarySensor(

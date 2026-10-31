@@ -38,7 +38,12 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
 
-from .conftest import get_aqualink_device, get_aqualink_system, setup_integration
+from .conftest import (
+    device_entity_ids,
+    get_aqualink_device,
+    get_aqualink_system,
+    setup_integration,
+)
 
 
 async def _advance_coordinator_time(
@@ -466,10 +471,10 @@ async def test_setup_all_good_no_recognized_devices(
 
     assert config_entry.state is ConfigEntryState.LOADED
 
-    assert len(hass.states.async_entity_ids(BINARY_SENSOR_DOMAIN)) == 0
+    assert len(device_entity_ids(hass, BINARY_SENSOR_DOMAIN)) == 0
     assert len(hass.states.async_entity_ids(CLIMATE_DOMAIN)) == 0
     assert len(hass.states.async_entity_ids(LIGHT_DOMAIN)) == 0
-    assert len(hass.states.async_entity_ids(SENSOR_DOMAIN)) == 0
+    assert len(device_entity_ids(hass, SENSOR_DOMAIN)) == 0
     assert len(hass.states.async_entity_ids(SWITCH_DOMAIN)) == 0
 
     assert await hass.config_entries.async_unload(config_entry.entry_id)
@@ -489,10 +494,10 @@ async def test_setup_all_good_all_device_types(
 
     assert config_entry.state is ConfigEntryState.LOADED
 
-    assert len(hass.states.async_entity_ids(BINARY_SENSOR_DOMAIN)) == 1
+    assert len(device_entity_ids(hass, BINARY_SENSOR_DOMAIN)) == 1
     assert len(hass.states.async_entity_ids(CLIMATE_DOMAIN)) == 1
     assert len(hass.states.async_entity_ids(LIGHT_DOMAIN)) == 1
-    assert len(hass.states.async_entity_ids(SENSOR_DOMAIN)) == 1
+    assert len(device_entity_ids(hass, SENSOR_DOMAIN)) == 1
     assert len(hass.states.async_entity_ids(SWITCH_DOMAIN)) == 1
 
     for domain in (
@@ -687,4 +692,4 @@ async def test_pool_light_card_served(hass: HomeAssistant) -> None:
     (config,) = hass.http.async_register_static_paths.await_args.args[0]
     assert (config.url_path, config.path) == (CARD_URL, str(CARD_PATH))
     assert CARD_PATH.is_file()
-    assert add_js.call_args.args[1] == f"{CARD_URL}?v=1.1.1"
+    assert add_js.call_args.args[1] == f"{CARD_URL}?v=1.2.0"

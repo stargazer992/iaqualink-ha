@@ -242,3 +242,15 @@ def config_entry_fixture():
         domain=DOMAIN,
         data=MOCK_DATA,
     )
+
+
+SYSTEM_ENTITY_SUFFIXES = ("_system_status", "_service_mode")
+
+
+def device_entity_ids(hass: HomeAssistant, domain: str) -> list[str]:
+    """Return a domain's entity ids, without the system status entities."""
+    return [
+        entity_id
+        for entity_id in hass.states.async_entity_ids(domain)
+        if not entity_id.endswith(SYSTEM_ENTITY_SUFFIXES)
+    ]
