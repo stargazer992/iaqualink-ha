@@ -4,7 +4,8 @@
             "already_configured": "Account is already configured",
             "already_in_progress": "This is already being configured. Finish the existing configuration before starting again.",
             "reauth_successful": "Re-authentication was successful",
-            "reconfigure_successful": "Reconfiguration was successful"
+            "reconfigure_successful": "Reconfiguration was successful",
+            "wrong_account": "These credentials are for a different iAquaLink account than the one this integration was set up with."
         },
         "error": {
             "cannot_connect": "Failed to connect",

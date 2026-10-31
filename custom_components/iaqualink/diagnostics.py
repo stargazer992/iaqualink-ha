@@ -7,7 +7,25 @@ from homeassistant.core import HomeAssistant
 
 from . import AqualinkConfigEntry
 
-TO_REDACT = {"serial", "serial_number"}
+TO_REDACT = {
+    "address",
+    "address_1",
+    "address_2",
+    "city",
+    "email",
+    "first_name",
+    "id",
+    "last_name",
+    "latitude",
+    "longitude",
+    "owner_id",
+    "phone",
+    "postal_code",
+    "serial",
+    "serial_number",
+    "username",
+    "zip",
+}
 
 
 async def async_get_config_entry_diagnostics(

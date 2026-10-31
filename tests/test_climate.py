@@ -20,6 +20,7 @@ from iaqualink.systems.iaqua.device import (
 )
 from iaqualink.systems.iaqua.system import IaquaSystem
 import pytest
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 from syrupy.assertion import SnapshotAssertion
 
 from homeassistant.components.climate import (
@@ -42,8 +43,6 @@ from .conftest import (
     get_aqualink_system,
     setup_entry,
 )
-
-from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 
 async def test_setup(
@@ -245,7 +244,7 @@ async def test_thermostat_set_temperature(
 
     entity_state = hass.states.get(entity_id)
     assert entity_state is not None
-    assert entity_state.attributes["temperature"] == 84.0
+    assert entity_state.attributes["temperature"] == 85.0
 
 
 @pytest.mark.parametrize(

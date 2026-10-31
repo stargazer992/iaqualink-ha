@@ -13,10 +13,14 @@ from iaqualink.exception import (
 from iaqualink.systems.iaqua.device import IaquaLightSwitch
 from iaqualink.systems.iaqua.system import IaquaSystem
 import pytest
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    async_fire_time_changed,
+)
 
+from custom_components.iaqualink.const import UPDATE_INTERVAL_BY_SYSTEM_TYPE
 from homeassistant.components.binary_sensor import DOMAIN as BINARY_SENSOR_DOMAIN
 from homeassistant.components.climate import DOMAIN as CLIMATE_DOMAIN
-from custom_components.iaqualink.const import UPDATE_INTERVAL_BY_SYSTEM_TYPE
 from homeassistant.components.light import DOMAIN as LIGHT_DOMAIN
 from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
 from homeassistant.components.switch import DOMAIN as SWITCH_DOMAIN
@@ -35,8 +39,6 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
 
 from .conftest import get_aqualink_device, get_aqualink_system, setup_integration
-
-from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
 
 
 async def _advance_coordinator_time(
@@ -666,3 +668,23 @@ async def test_system_refresh_unauthorized_triggers_reauth(
     assert len(flows) == 1
     assert flows[0]["context"]["source"] == SOURCE_REAUTH
     assert flows[0]["context"]["entry_id"] == config_entry.entry_id
+
+
+async def test_pool_light_card_served(hass: HomeAssistant) -> None:
+    """The bundled pool light card is served and added to the frontend."""
+    from unittest.mock import AsyncMock, MagicMock, patch  # noqa: PLC0415
+
+    from custom_components.iaqualink import (  # noqa: PLC0415
+        CARD_PATH,
+        CARD_URL,
+        async_setup,
+    )
+
+    hass.http = MagicMock(async_register_static_paths=AsyncMock())
+    with patch("homeassistant.components.frontend.add_extra_js_url") as add_js:
+        assert await async_setup(hass, {})
+
+    (config,) = hass.http.async_register_static_paths.await_args.args[0]
+    assert (config.url_path, config.path) == (CARD_URL, str(CARD_PATH))
+    assert CARD_PATH.is_file()
+    assert add_js.call_args.args[1] == f"{CARD_URL}?v=1.0.0"

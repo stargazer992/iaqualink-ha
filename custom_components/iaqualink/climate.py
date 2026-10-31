@@ -4,7 +4,6 @@ import logging
 from typing import Any, override
 
 from iaqualink.device import AqualinkThermostat
-from iaqualink.systems.iaqua.device import AqualinkState
 
 from homeassistant.components.climate import (
     ClimateEntity,
@@ -23,7 +22,7 @@ from .utils import await_or_reraise
 
 _LOGGER = logging.getLogger(__name__)
 
-PARALLEL_UPDATES = 0
+PARALLEL_UPDATES = 1
 
 
 async def async_setup_entry(
@@ -49,6 +48,7 @@ class HassAqualinkThermostat(AqualinkEntity[AqualinkThermostat], ClimateEntity):
         | ClimateEntityFeature.TURN_OFF
         | ClimateEntityFeature.TURN_ON
     )
+    _attr_target_temperature_step = 1
 
     def __init__(
         self, coordinator: AqualinkDataUpdateCoordinator, dev: AqualinkThermostat
@@ -88,12 +88,17 @@ class HassAqualinkThermostat(AqualinkEntity[AqualinkThermostat], ClimateEntity):
 
     @property
     @override
-    def hvac_action(self) -> HVACAction:
+    def hvac_action(self) -> HVACAction | None:
         """Return the current HVAC action."""
-        state = AqualinkState(self.dev._heater.state)  # noqa: SLF001
-        if state == AqualinkState.ON:
+        if self.dev.system.NAME != "iaqua":
+            # Other systems don't report whether the heater is firing.
+            return HVACAction.HEATING if self.dev.is_on else HVACAction.OFF
+        # iAqua heaters report "1" while heating and "3" while enabled but idle.
+        heater = self.dev.system.devices.get(f"{self.dev.name.split('_')[0]}_heater")
+        state = heater.data.get("state") if heater is not None else None
+        if state == "1":
             return HVACAction.HEATING
-        if state == AqualinkState.ENABLED:
+        if state == "3":
             return HVACAction.IDLE
         return HVACAction.OFF
 
@@ -110,7 +115,7 @@ class HassAqualinkThermostat(AqualinkEntity[AqualinkThermostat], ClimateEntity):
         await await_or_reraise(
             self.hass,
             self.coordinator.config_entry,
-            self.dev.set_temperature(int(kwargs[ATTR_TEMPERATURE])),
+            self.dev.set_temperature(round(kwargs[ATTR_TEMPERATURE])),
         )
 
     @property

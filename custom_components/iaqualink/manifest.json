@@ -1,6 +1,10 @@
 {
   "domain": "iaqualink",
   "name": "Jandy iAquaLink",
+  "after_dependencies": [
+    "frontend",
+    "http"
+  ],
   "codeowners": [
     "@stargazer992"
   ],
@@ -19,7 +23,7 @@
   ],
   "requirements": [
     "iaqualink==0.7.0",
-    "h2==4.3.0"
+    "h2>=4.3.0"
   ],
   "single_config_entry": true,
   "version": "1.0.0"

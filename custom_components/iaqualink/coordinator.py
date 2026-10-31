@@ -16,6 +16,7 @@ from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import DOMAIN, UPDATE_INTERVAL_BY_SYSTEM_TYPE, UPDATE_INTERVAL_DEFAULT
+from .icl import IclManager
 from .utils import error_detail
 
 _LOGGER = logging.getLogger(__name__)
@@ -41,6 +42,20 @@ class AqualinkDataUpdateCoordinator(DataUpdateCoordinator[None]):
             update_interval=update_interval,
         )
         self.system = system
+        self.icl: IclManager | None = None
+
+    async def async_refresh_after_command(self) -> None:
+        """Show the result of a command.
+
+        iAqua replies carry the new state, so redrawing is enough. Other systems
+        (EXO) only acknowledge, so fetch the state, skipping the library's
+        refresh throttle.
+        """
+        if self.system.NAME == "iaqua":
+            self.async_update_listeners()
+            return
+        self.system.last_refresh = 0
+        await self.async_request_refresh()
 
     @override
     async def _async_update_data(self) -> None:
@@ -62,3 +77,5 @@ class AqualinkDataUpdateCoordinator(DataUpdateCoordinator[None]):
             ) from err
         if self.system.online is not True:
             raise UpdateFailed(f"iAquaLink system {self.system.serial} is offline")
+        if self.icl is not None:
+            await self.icl.async_poll()
