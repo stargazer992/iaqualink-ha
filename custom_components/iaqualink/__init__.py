@@ -77,6 +77,9 @@ class AqualinkRuntimeData:
     switches: list[AqualinkSwitch]
     thermostats: list[AqualinkThermostat]
     icl_lights: list[IclZone] = field(default_factory=list)
+    cloud_coordinators: dict[str, AqualinkDataUpdateCoordinator] = field(
+        default_factory=dict
+    )
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:

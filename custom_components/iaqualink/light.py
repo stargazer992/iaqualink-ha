@@ -46,7 +46,12 @@ async def async_setup_entry(
         for dev in runtime_data.lights
     ]
     entities.extend(
-        HassAqualinkIclLight(runtime_data.coordinators[zone.system.serial], zone)
+        HassAqualinkIclLight(
+            runtime_data.cloud_coordinators.get(
+                zone.system.serial, runtime_data.coordinators[zone.system.serial]
+            ),
+            zone,
+        )
         for zone in runtime_data.icl_lights
     )
     async_add_entities(entities)
