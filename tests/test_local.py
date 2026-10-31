@@ -1,0 +1,285 @@
+"""Tests for the Local (AqualinkD) connection."""
+
+from typing import Any
+from unittest.mock import AsyncMock, patch
+
+import httpx
+from iaqualink.systems.iaqua.system import IaquaSystem
+import pytest
+from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+from custom_components.iaqualink.const import (
+    CONF_AQUALINKD_URL,
+    CONF_CONNECTION,
+    CONNECTION_CLOUD,
+    CONNECTION_LOCAL,
+    DOMAIN,
+)
+from custom_components.iaqualink.local import (
+    AqualinkdClient,
+    AqualinkdError,
+    LocalSystem,
+    cloud_name,
+)
+from homeassistant.config_entries import ConfigEntryState
+from homeassistant.core import HomeAssistant
+from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.helpers import entity_registry as er
+from homeassistant.util.unit_system import US_CUSTOMARY_SYSTEM
+
+from .conftest import MOCK_DATA, get_aqualink_system, setup_entry
+
+URL = "http://aqualinkd.test"
+
+
+class FakeAqualinkd:
+    """A tiny AqualinkD: /api/devices, /api/status and the set URLs."""
+
+    def __init__(self) -> None:
+        self.status = "Ready"
+        self.down = False
+        self.requests: list[str] = []
+        self.rows: dict[str, dict[str, Any]] = {
+            row["id"]: row
+            for row in (
+                {
+                    "type": "switch",
+                    "id": "Filter_Pump",
+                    "name": "Filter Pump",
+                    "state": "on",
+                },
+                {"type": "switch", "id": "Aux_1", "name": "Cleaner", "state": "off"},
+                {
+                    "type": "setpoint_thermo",
+                    "id": "Pool_Heater",
+                    "name": "Pool Heater",
+                    "state": "off",
+                    "spvalue": "80",
+                    "value": "78",
+                },
+                {
+                    "type": "setpoint_freeze",
+                    "id": "Freeze_Protect",
+                    "name": "Freeze Protection",
+                    "state": "off",
+                    "spvalue": "38",
+                    "value": "60",
+                },
+                {
+                    "type": "value",
+                    "id": "SWG/Percent",
+                    "name": "SWG Percent",
+                    "state": "on",
+                    "value": "80",
+                },
+                {
+                    "type": "value",
+                    "id": "SWG/PPM",
+                    "name": "SWG PPM",
+                    "state": "on",
+                    "value": "3200",
+                },
+                {
+                    "type": "temperature",
+                    "id": "Temperature/Pool",
+                    "name": "Pool",
+                    "state": "on",
+                    "value": "78",
+                },
+            )
+        }
+
+    def handler(self, request: httpx.Request) -> httpx.Response:
+        if self.down:
+            raise httpx.ConnectError("down", request=request)
+        path = request.url.path.removeprefix("/api/")
+        if path == "devices":
+            return httpx.Response(
+                200,
+                json={
+                    "type": "devices",
+                    "temp_units": "F",
+                    "devices": list(self.rows.values()),
+                },
+            )
+        if path == "status":
+            return httpx.Response(200, json={"type": "status", "status": self.status})
+        self.requests.append(f"{path}={request.url.params.get('value')}")
+        device, _, action = path.partition("/")
+        value = request.url.params.get("value")
+        if action == "set" and device in self.rows:
+            self.rows[device]["state"] = "on" if value == "1" else "off"
+        elif action == "setpoint/set" and device in self.rows:
+            self.rows[device]["spvalue"] = value
+        return httpx.Response(200, json={"message": "ok"})
+
+    def client(self, *_args: Any, **_kwargs: Any) -> httpx.AsyncClient:
+        return httpx.AsyncClient(transport=httpx.MockTransport(self.handler))
+
+
+@pytest.fixture(name="fake")
+def fake_fixture() -> FakeAqualinkd:
+    """Return a fake AqualinkD."""
+    return FakeAqualinkd()
+
+
+def _local_entry() -> MockConfigEntry:
+    return MockConfigEntry(
+        domain=DOMAIN,
+        data=MOCK_DATA,
+        options={CONF_CONNECTION: CONNECTION_LOCAL, CONF_AQUALINKD_URL: URL},
+    )
+
+
+async def _setup_local(
+    hass: HomeAssistant, fake: FakeAqualinkd, client
+) -> MockConfigEntry:
+    system = get_aqualink_system(
+        client, cls=IaquaSystem, data={"home_screen": [{}, {}, {}, {"temp_scale": "F"}]}
+    )
+    system.online = True
+    system.update = AsyncMock()
+    system.devices = {}
+    system.get_devices = AsyncMock(return_value={})
+    entry = _local_entry()
+    with patch("custom_components.iaqualink.get_async_client", fake.client):
+        await setup_entry(hass, entry, system)
+    return entry
+
+
+def _entity(hass: HomeAssistant, domain: str, name: str) -> str:
+    entity_id = er.async_get(hass).async_get_entity_id(
+        domain, DOMAIN, f"SN00001_{name}"
+    )
+    assert entity_id is not None, f"{domain} {name} missing"
+    return entity_id
+
+
+def test_cloud_names() -> None:
+    """AqualinkD ids map onto the cloud's device names."""
+    assert cloud_name("Filter_Pump") == "pool_pump"
+    assert cloud_name("Aux_3") == "aux_3"
+    assert cloud_name("Aux_V1") == "aux_v1"
+    assert cloud_name("SWG/PPM") == "pool_salinity"
+
+
+async def test_local_system_parses_devices(fake: FakeAqualinkd) -> None:
+    """Rows become switches, a thermostat, sensors and a binary sensor."""
+    system = LocalSystem(AqualinkdClient(URL, fake.client()), "SN1", "Pool")
+    devices = await system.get_devices()
+    assert set(devices) == {
+        "pool_pump",
+        "aux_1",
+        "pool_heater",
+        "pool_set_point",
+        "freeze_protection",
+        "swg_percent",
+        "pool_salinity",
+        "pool_temp",
+    }
+    assert devices["pool_set_point"].target_temperature == "80"
+    assert devices["pool_set_point"].current_temperature == "78"
+    assert devices["pool_salinity"].state == "3200"
+    assert system.online is True
+
+    await devices["aux_1"].turn_on()
+    await devices["pool_set_point"].set_temperature(84)
+    assert fake.requests == ["Aux_1/set=1", "Pool_Heater/setpoint/set=84"]
+
+
+async def test_local_system_unreachable(fake: FakeAqualinkd) -> None:
+    """An unreachable AqualinkD marks the system offline."""
+    fake.down = True
+    system = LocalSystem(AqualinkdClient(URL, fake.client()), "SN1", "Pool")
+    with pytest.raises(AqualinkdError):
+        await system.update()
+    assert system.online is False
+
+
+async def test_local_entities(hass: HomeAssistant, fake: FakeAqualinkd, client) -> None:
+    """Local mode creates entities with the cloud's unique IDs and sends commands locally."""
+    hass.config.units = US_CUSTOMARY_SYSTEM
+    entry = await _setup_local(hass, fake, client)
+    assert entry.state is ConfigEntryState.LOADED
+
+    assert hass.states.get(_entity(hass, "switch", "pool_pump")).state == "on"
+    assert hass.states.get(_entity(hass, "sensor", "pool_salinity")).state == "3200"
+    assert hass.states.get(_entity(hass, "sensor", "swg_percent")).state == "80"
+    status = _entity(hass, "sensor", "system_status")
+    assert hass.states.get(status).state == "Online"
+
+    cleaner = _entity(hass, "switch", "aux_1")
+    await hass.services.async_call(
+        "switch", "turn_on", {"entity_id": cleaner}, blocking=True
+    )
+    assert "Aux_1/set=1" in fake.requests
+    assert hass.states.get(cleaner).state == "on"
+
+    climate = _entity(hass, "climate", "pool_set_point")
+    await hass.services.async_call(
+        "climate",
+        "set_temperature",
+        {"entity_id": climate, "temperature": 85},
+        blocking=True,
+    )
+    assert "Pool_Heater/setpoint/set=85" in fake.requests
+
+
+async def test_local_service_mode(
+    hass: HomeAssistant, fake: FakeAqualinkd, client
+) -> None:
+    """AqualinkD's Service Mode shows as Service."""
+    fake.status = "Service Mode"
+    await _setup_local(hass, fake, client)
+    assert hass.states.get(_entity(hass, "sensor", "system_status")).state == "Service"
+    assert hass.states.get(_entity(hass, "binary_sensor", "service_mode")).state == "on"
+
+
+async def test_local_unreachable_retries(
+    hass: HomeAssistant, fake: FakeAqualinkd, client
+) -> None:
+    """If AqualinkD is down at startup the entry retries setup."""
+    fake.down = True
+    entry = await _setup_local(hass, fake, client)
+    assert entry.state is ConfigEntryState.SETUP_RETRY
+
+
+async def test_options_flow(hass: HomeAssistant, fake: FakeAqualinkd) -> None:
+    """The options flow switches to Local after checking AqualinkD answers."""
+    entry = MockConfigEntry(domain=DOMAIN, data=MOCK_DATA)
+    entry.add_to_hass(hass)
+    with (
+        patch("custom_components.iaqualink.config_flow.get_async_client", fake.client),
+        patch("custom_components.iaqualink.async_setup_entry", return_value=True),
+    ):
+        result = await hass.config_entries.options.async_init(entry.entry_id)
+        assert result["type"] is FlowResultType.FORM
+
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            {CONF_CONNECTION: CONNECTION_LOCAL, CONF_AQUALINKD_URL: "aqualinkd"},
+        )
+        assert result["errors"] == {CONF_AQUALINKD_URL: "invalid_url"}
+
+        fake.down = True
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            {CONF_CONNECTION: CONNECTION_LOCAL, CONF_AQUALINKD_URL: URL},
+        )
+        assert result["errors"] == {"base": "cannot_connect_aqualinkd"}
+
+        fake.down = False
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            {CONF_CONNECTION: CONNECTION_LOCAL, CONF_AQUALINKD_URL: URL + "/"},
+        )
+        assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.options == {CONF_CONNECTION: CONNECTION_LOCAL, CONF_AQUALINKD_URL: URL}
+
+    with patch("custom_components.iaqualink.async_setup_entry", return_value=True):
+        result = await hass.config_entries.options.async_init(entry.entry_id)
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            {CONF_CONNECTION: CONNECTION_CLOUD, CONF_AQUALINKD_URL: URL},
+        )
+    assert entry.options[CONF_CONNECTION] == CONNECTION_CLOUD

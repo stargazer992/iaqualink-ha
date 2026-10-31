@@ -27,6 +27,21 @@ A custom version of Home Assistant's built-in [iAquaLink integration](https://ww
 
 Each iAqua system gets a **System status** sensor (`Online`, `Offline` or `Service`, as the iAquaLink app's home screen reports it; also `Offline` when the cloud can't be reached) and a **Service mode** binary sensor. Both stay available while the system is down, so dashboards can show the outage.
 
+## Cloud or Local (AqualinkD)
+
+By default everything goes through the iAquaLink cloud. If you run [AqualinkD](https://github.com/aqualinkd/AqualinkD) on a Raspberry Pi wired to the panel's RS-485 bus, you can switch to **Local** in **Settings > Devices & services > iAquaLink > Configure**:
+
+- **Connection:** Cloud (iAquaLink) or Local (AqualinkD).
+- **AqualinkD address:** e.g. `http://aqualinkd.local` or `http://192.168.1.50`. It is checked before saving.
+
+In Local mode, pumps, aux buttons, heaters, setpoints, temperatures, freeze protection, pH/ORP and the salt cell (`swg_percent`, and salt ppm in `pool_salinity`) come from AqualinkD's HTTP API, polled every 5 seconds. Entities keep the cloud's names and unique IDs, so dashboards and automations keep working when you switch. System status and Service mode read AqualinkD's panel status.
+
+The iCL light zones and their watchdog still use the cloud in Local mode, because AqualinkD has no iCL zone support. Keep the iAquaLink credentials in place.
+
+Turn off AqualinkD's own MQTT discovery for Home Assistant, otherwise HA gets a second set of entities for the same equipment.
+
+Local mode has only been tested against a simulated AqualinkD. Device ids that differ on a real panel (for example `Extra_Aux`, `Aux_V*`) may need mapping.
+
 ## iCL lights
 
 Zones are named after the zone names in the iAquaLink app; with zones called "Pool" and "Spa" you get `light.pool` and `light.spa`.

@@ -1,69 +1,97 @@
 {
-    "config": {
-        "abort": {
-            "already_configured": "Account is already configured",
-            "already_in_progress": "This is already being configured. Finish the existing configuration before starting again.",
-            "reauth_successful": "Re-authentication was successful",
-            "reconfigure_successful": "Reconfiguration was successful",
-            "wrong_account": "These credentials are for a different iAquaLink account than the one this integration was set up with."
-        },
-        "error": {
-            "cannot_connect": "Failed to connect",
-            "invalid_auth": "Invalid authentication"
-        },
-        "step": {
-            "reauth_confirm": {
-                "data": {
-                    "password": "Password",
-                    "username": "Username"
-                },
-                "data_description": {
-                    "password": "The password associated with your account.",
-                    "username": "The email address used to sign in to your account using the iAquaLink app or website."
-                },
-                "description": "Please enter the username and password for your iAquaLink account.",
-                "title": "Reauthenticate iAquaLink"
-            },
-            "reconfigure": {
-                "data": {
-                    "password": "Password",
-                    "username": "Username"
-                },
-                "data_description": {
-                    "password": "The password associated with your account.",
-                    "username": "The email address used to sign in to your account using the iAquaLink app or website."
-                },
-                "description": "Please enter the username and password for your iAquaLink account.",
-                "title": "Reconnect iAquaLink"
-            },
-            "user": {
-                "data": {
-                    "password": "Password",
-                    "username": "Username"
-                },
-                "data_description": {
-                    "password": "The password associated with your account.",
-                    "username": "The email address used to sign in to your account using the iAquaLink app or website."
-                },
-                "description": "Please enter the username and password for your iAquaLink account.",
-                "title": "Connect to iAquaLink"
-            }
-        }
+  "config": {
+    "abort": {
+      "already_configured": "Account is already configured",
+      "already_in_progress": "This is already being configured. Finish the existing configuration before starting again.",
+      "reauth_successful": "Re-authentication was successful",
+      "reconfigure_successful": "Reconfiguration was successful",
+      "wrong_account": "These credentials are for a different iAquaLink account than the one this integration was set up with."
     },
-    "services": {
-        "set_next_on": {
-            "name": "Set next-on colour and brightness",
-            "description": "Sets the colour and brightness an iCL light zone comes on in. If the zone is on, it changes straight away.",
-            "fields": {
-                "rgb_color": {
-                    "name": "Colour",
-                    "description": "Red, green and blue (0-255 each)."
-                },
-                "brightness_pct": {
-                    "name": "Brightness",
-                    "description": "Brightness in percent."
-                }
-            }
-        }
+    "error": {
+      "cannot_connect": "Failed to connect",
+      "invalid_auth": "Invalid authentication"
+    },
+    "step": {
+      "reauth_confirm": {
+        "data": {
+          "password": "Password",
+          "username": "Username"
+        },
+        "data_description": {
+          "password": "The password associated with your account.",
+          "username": "The email address used to sign in to your account using the iAquaLink app or website."
+        },
+        "description": "Please enter the username and password for your iAquaLink account.",
+        "title": "Reauthenticate iAquaLink"
+      },
+      "reconfigure": {
+        "data": {
+          "password": "Password",
+          "username": "Username"
+        },
+        "data_description": {
+          "password": "The password associated with your account.",
+          "username": "The email address used to sign in to your account using the iAquaLink app or website."
+        },
+        "description": "Please enter the username and password for your iAquaLink account.",
+        "title": "Reconnect iAquaLink"
+      },
+      "user": {
+        "data": {
+          "password": "Password",
+          "username": "Username"
+        },
+        "data_description": {
+          "password": "The password associated with your account.",
+          "username": "The email address used to sign in to your account using the iAquaLink app or website."
+        },
+        "description": "Please enter the username and password for your iAquaLink account.",
+        "title": "Connect to iAquaLink"
+      }
     }
+  },
+  "services": {
+    "set_next_on": {
+      "name": "Set next-on colour and brightness",
+      "description": "Sets the colour and brightness an iCL light zone comes on in. If the zone is on, it changes straight away.",
+      "fields": {
+        "rgb_color": {
+          "name": "Colour",
+          "description": "Red, green and blue (0-255 each)."
+        },
+        "brightness_pct": {
+          "name": "Brightness",
+          "description": "Brightness in percent."
+        }
+      }
+    }
+  },
+  "options": {
+    "error": {
+      "cannot_connect_aqualinkd": "Couldn't reach AqualinkD at that address.",
+      "invalid_url": "Enter a URL starting with http:// or https://."
+    },
+    "step": {
+      "init": {
+        "title": "Connection",
+        "description": "Cloud uses the iAquaLink cloud. Local controls pumps, heaters and the salt cell through AqualinkD on your network; the iCL lights still use the cloud.",
+        "data": {
+          "connection": "Connection",
+          "aqualinkd_url": "AqualinkD address"
+        },
+        "data_description": {
+          "connection": "Where equipment commands are sent.",
+          "aqualinkd_url": "AqualinkD's web address, for example http://aqualinkd.local or http://192.168.1.50:80. Only used for Local."
+        }
+      }
+    }
+  },
+  "selector": {
+    "connection": {
+      "options": {
+        "cloud": "Cloud (iAquaLink)",
+        "local": "Local (AqualinkD)"
+      }
+    }
+  }
 }
