@@ -13,7 +13,6 @@ from iaqualink.systems.iaqua.device import (
     IaquaDimmableLight,
 )
 from iaqualink.systems.iaqua.system import IaquaSystem
-import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.iaqualink import icl
@@ -94,8 +93,6 @@ async def _setup_icl(
     hass: HomeAssistant,
     config_entry: MockConfigEntry,
     client: AqualinkClient,
-    *,
-    in_devices: bool = True,
 ) -> tuple[IaquaSystem, FakeIclCloud]:
     cloud = FakeIclCloud()
     system = get_aqualink_system(client, cls=IaquaSystem)
@@ -107,8 +104,7 @@ async def _setup_icl(
     system._parse_devices_response = MagicMock()
 
     async def update() -> None:
-        if in_devices:
-            system._parse_devices_response(_response(cloud.info()))
+        system._parse_devices_response(_response(cloud.info()))
 
     system.update = AsyncMock(side_effect=update)
     system.get_devices = AsyncMock(return_value={present.name: present})
@@ -117,22 +113,18 @@ async def _setup_icl(
     return system, cloud
 
 
-@pytest.mark.parametrize("in_devices", [True, False])
 async def test_icl_zones_discovered(
-    hass: HomeAssistant,
-    config_entry: MockConfigEntry,
-    client: AqualinkClient,
-    in_devices: bool,
+    hass: HomeAssistant, config_entry: MockConfigEntry, client: AqualinkClient
 ) -> None:
-    """Zones come from get_devices, or from get_icl_info when it doesn't list them."""
-    _, cloud = await _setup_icl(hass, config_entry, client, in_devices=in_devices)
+    """Zones come from the get_devices reply; absent zones are skipped."""
+    _, cloud = await _setup_icl(hass, config_entry, client)
 
     assert sorted(hass.states.async_entity_ids(LIGHT_DOMAIN)) == [POOL, SPA]
     state = hass.states.get(POOL)
     assert state.state == STATE_OFF
     assert "Off" not in state.attributes[ATTR_EFFECT_LIST]
     assert len(state.attributes[ATTR_EFFECT_LIST]) == 15
-    assert (icl.COMMAND_GET_INFO, {}) in cloud.calls or in_devices
+    assert cloud.calls == []
 
 
 async def test_icl_turn_on_off(

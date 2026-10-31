@@ -62,8 +62,6 @@ class AqualinkDataUpdateCoordinator(DataUpdateCoordinator[None]):
         """Refresh internal state for a system."""
         try:
             await self.system.update()
-            if self.icl is not None and self.system.online is True:
-                await self.icl.async_poll()
         except AqualinkServiceUnauthorizedException as err:
             raise ConfigEntryAuthFailed("Invalid credentials for iAquaLink") from err
         except AqualinkServiceThrottledException:

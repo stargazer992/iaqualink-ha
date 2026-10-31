@@ -1,7 +1,9 @@
 """iCL (Jandy Infinite WaterColors) light zones on iAqua systems.
 
-iaqualink 0.7.0 ignores the ``icl_info_list`` that iAqua systems return, so
-the zones are read and controlled here, over the library's session request.
+iaqualink 0.7.0 ignores the ``icl_info_list`` in the get_devices reply, so the
+zones are read and controlled here, over the library's session request. The
+zones are only read from get_devices and command replies: get_icl_info times
+out on real controllers.
 """
 
 from __future__ import annotations
@@ -15,7 +17,6 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-COMMAND_GET_INFO = "get_icl_info"
 COMMAND_ON_OFF = "onoff_iclzone"
 COMMAND_SET_COLOR = "set_iclzone_color"
 COMMAND_SET_CUSTOM_COLOR = "define_iclzone_customcolor"
@@ -167,7 +168,6 @@ class IclManager:
         """Hook into the system's device-screen parsing."""
         self.system = system
         self.zones: dict[int, IclZone] = {}
-        self.seen_in_devices = False
         original = system._parse_devices_response  # noqa: SLF001
 
         def parse_devices(response: Any) -> None:
@@ -177,16 +177,9 @@ class IclManager:
             except ValueError:
                 return
             if isinstance(data, dict) and "icl_info_list" in data:
-                self.seen_in_devices = True
                 self.update(data["icl_info_list"])
 
         system._parse_devices_response = parse_devices  # type: ignore[method-assign]  # noqa: SLF001
-
-    @property
-    def icl_present(self) -> bool:
-        """Return whether the controller reports an iCL interface."""
-        dev = self.system.devices.get("is_icl_present")
-        return dev is not None and dev.data.get("state") in ("1", "present")
 
     def update(self, zones: Any) -> None:
         """Merge an ``icl_info_list`` into the known zones."""
@@ -207,12 +200,6 @@ class IclManager:
                 self.zones[zone_id].data.update(data)
             else:
                 self.zones[zone_id] = IclZone(self, data)
-
-    async def async_poll(self) -> None:
-        """Fetch the zones with get_icl_info when get_devices doesn't include them."""
-        if self.seen_in_devices or not self.icl_present:
-            return
-        await self.send(COMMAND_GET_INFO, {})
 
     async def send(self, command: str, params: dict[str, str]) -> dict[str, Any]:
         """Send an iCL command and merge any zone state in the reply."""
