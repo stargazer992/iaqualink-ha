@@ -282,6 +282,11 @@ async def _async_setup_system(
     if coordinator.icl is not None:
         await coordinator.icl.async_discover()
         runtime_data.icl_lights += list(coordinator.icl.zones.values())
+        local = runtime_data.coordinators[system.serial].system
+        if isinstance(local, LocalSystem):
+            for zone in coordinator.icl.zones.values():
+                zone.local = local.infinite.get(zone.label.casefold())
+                zone.sync_local()
         if coordinator.icl.zones:
             coordinator.watchdog = IclWatchdog(hass, coordinator, coordinator.icl)
 

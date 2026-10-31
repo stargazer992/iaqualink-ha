@@ -26,6 +26,8 @@ from typing import TYPE_CHECKING, Any
 import httpx
 from iaqualink.exception import AqualinkServiceException
 
+from .local import AqualinkdError, LocalInfiniteLight
+
 if TYPE_CHECKING:
     from iaqualink.systems.iaqua.system import IaquaSystem
 
@@ -87,6 +89,9 @@ class IclZone:
         self.brightness_percentage: int | None = None
         self.rgb: tuple[int, int, int] | None = None
         self._hold_until = 0.0
+        # Set in Local mode when AqualinkD has an Infinite WaterColors button
+        # with this zone's name; commands then go to AqualinkD first.
+        self.local: LocalInfiniteLight | None = None
         self.apply_report(data)
 
     @property
@@ -113,6 +118,23 @@ class IclZone:
     def settling(self) -> bool:
         """Return whether a recent command may not show in reports yet."""
         return time.monotonic() < self._hold_until
+
+    def sync_local(self) -> None:
+        """Take AqualinkD's on/off state; it reports reliably, unlike the cloud."""
+        if self.local is None:
+            return
+        self.is_on = self.reported_on = self.local.is_on
+
+    async def _try_local(self, action: str, command: Any) -> bool:
+        """Run a command on AqualinkD; False means fall back to the cloud."""
+        try:
+            await command
+        except AqualinkdError as err:
+            _LOGGER.warning(
+                "%s: AqualinkD %s failed, using the cloud: %s", self.label, action, err
+            )
+            return False
+        return True
 
     def apply_report(self, data: dict[str, str]) -> None:
         """Take the reported state, unless a recent command is still settling."""
@@ -162,6 +184,14 @@ class IclZone:
         if percentage is None:
             percentage = self.brightness_percentage
         self.desired_on = True
+        if self.local is not None and await self._try_local(
+            "turn on", self.local.turn_on(rgb, percentage)
+        ):
+            self.is_on = True
+            self.rgb = rgb
+            if percentage is not None:
+                self.brightness_percentage = percentage
+            return
         self._hold()
         try:
             await self._on_off(STATUS_OFF)
@@ -190,6 +220,11 @@ class IclZone:
     async def turn_off(self) -> None:
         """Turn the zone off."""
         self.desired_on = False
+        if self.local is not None and await self._try_local(
+            "turn off", self.local.turn_off()
+        ):
+            self.is_on = False
+            return
         self._hold()
         await self._on_off(STATUS_OFF)
         self.is_on = False
@@ -197,6 +232,11 @@ class IclZone:
 
     async def set_brightness(self, percentage: int) -> None:
         """Set the dim level without changing the colour."""
+        if self.local is not None and await self._try_local(
+            "brightness", self.local.set_brightness(percentage)
+        ):
+            self.brightness_percentage = percentage
+            return
         self._hold()
         await self._send(COMMAND_SET_COLOR, dim_level=percentage)
         self.brightness_percentage = percentage

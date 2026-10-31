@@ -436,3 +436,67 @@ async def test_options_flow(hass: HomeAssistant, fake: FakeAqualinkd) -> None:
             {CONF_CONNECTION: CONNECTION_CLOUD, CONF_AQUALINKD_URL: URL},
         )
     assert entry.options[CONF_CONNECTION] == CONNECTION_CLOUD
+
+
+def _infinite_zone(fake: FakeAqualinkd) -> tuple[Any, LocalSystem, AsyncMock]:
+    from custom_components.iaqualink.icl import IclZone  # noqa: PLC0415
+
+    fake.rows["Aux_V1"] = {
+        "type": "switch",
+        "id": "Aux_V1",
+        "name": "Pool Lights",
+        "state": "off",
+        "type_ext": "switch_program",
+        "Light_Type": "7",
+        "Light_Program": "0",
+        "Program_Name": "Off",
+        "light_programs": ["Off", "Alpine White"],
+    }
+    system = LocalSystem(AqualinkdClient(URL, fake.client()), "SN1", "Pool")
+    manager = AsyncMock()
+    manager.system = system
+    zone = IclZone(manager, {"zoneId": "1", "zoneName": "Pool Lights"})
+    return zone, system, manager.send
+
+
+async def test_infinite_light_drives_zone(fake: FakeAqualinkd) -> None:
+    """A matching Infinite WaterColors button takes the zone's commands."""
+    zone, system, cloud_send = _infinite_zone(fake)
+    devices = await system.get_devices()
+    assert "aux_v1" not in devices
+    assert "aux_v1_program" not in devices
+    zone.local = system.infinite["pool lights"]
+
+    await zone.turn_on((0, 100, 255), 40)
+    assert fake.requests[-3:] == [
+        "Aux_V1/set=1",
+        f"Aux_V1/rgb/set={(0 << 16) | (100 << 8) | 255}",
+        "Aux_V1/brightness/set=40",
+    ]
+    assert zone.is_on is True
+    assert zone.rgb == (0, 100, 255)
+    await zone.set_brightness(70)
+    await zone.turn_off()
+    assert fake.requests[-2:] == ["Aux_V1/brightness/set=70", "Aux_V1/set=0"]
+    cloud_send.assert_not_called()
+
+    fake.rows["Aux_V1"]["state"] = "on"
+    await system.update()
+    zone.sync_local()
+    assert zone.is_on is True
+    assert zone.reported_on is True
+
+
+async def test_infinite_light_falls_back_to_cloud(fake: FakeAqualinkd) -> None:
+    """If AqualinkD is down the zone uses the cloud's captured sequence."""
+    zone, system, cloud_send = _infinite_zone(fake)
+    await system.get_devices()
+    zone.local = system.infinite["pool lights"]
+    fake.down = True
+    with (
+        patch("custom_components.iaqualink.icl.TURN_ON_OFF_DELAY", 0),
+        patch("custom_components.iaqualink.icl.TURN_ON_ON_DELAY", 0),
+    ):
+        await zone.turn_on((0, 100, 255), None)
+    commands = [call.args[0] for call in cloud_send.call_args_list]
+    assert commands == ["onoff_iclzone", "onoff_iclzone", "define_iclzone_customcolor"]

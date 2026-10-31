@@ -105,6 +105,8 @@ class IclWatchdog:
 
     async def _async_check_zone(self, zone: IclZone) -> None:
         desired = zone.desired_on
+        if zone.local is not None:
+            return
         if desired is None or not zone.reports_state or zone.settling:
             return
         if zone.reported_on == desired:

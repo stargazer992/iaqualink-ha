@@ -51,6 +51,7 @@ async def async_setup_entry(
                 zone.system.serial, runtime_data.coordinators[zone.system.serial]
             ),
             zone,
+            runtime_data.coordinators[zone.system.serial],
         )
         for zone in runtime_data.icl_lights
     )
@@ -172,10 +173,38 @@ class HassAqualinkIclLight(AqualinkEntity[Any], LightEntity, RestoreEntity):
 
     dev: IclZone
 
+    def __init__(
+        self,
+        coordinator: AqualinkDataUpdateCoordinator,
+        dev: IclZone,
+        local_coordinator: AqualinkDataUpdateCoordinator | None = None,
+    ) -> None:
+        """Initialize the zone; in Local mode AqualinkD may drive it."""
+        super().__init__(coordinator, dev)
+        self._local = (
+            local_coordinator if local_coordinator is not coordinator else None
+        )
+
+    @property
+    @override
+    def available(self) -> bool:
+        """Follow AqualinkD while it drives the zone, else the cloud."""
+        if self.dev.local is not None and self._local is not None:
+            return self._local.last_update_success
+        return super().available
+
+    def _handle_local_update(self) -> None:
+        self.dev.sync_local()
+        self.async_write_ha_state()
+
     @override
     async def async_added_to_hass(self) -> None:
         """Restore what the controller doesn't report."""
         await super().async_added_to_hass()
+        if self.dev.local is not None and self._local is not None:
+            self.async_on_remove(
+                self._local.async_add_listener(self._handle_local_update)
+            )
         last = await self.async_get_last_state()
         extra = await self.async_get_last_extra_data()
         saved = extra.as_dict() if extra is not None else {}
@@ -237,6 +266,8 @@ class HassAqualinkIclLight(AqualinkEntity[Any], LightEntity, RestoreEntity):
     @override
     def assumed_state(self) -> bool:
         """Return True when the controller doesn't report the zone's state."""
+        if self.dev.local is not None:
+            return False
         return super().assumed_state or not self.dev.reports_state
 
     @property
