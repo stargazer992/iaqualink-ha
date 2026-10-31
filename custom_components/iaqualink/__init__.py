@@ -40,7 +40,13 @@ from .const import CONF_AQUALINKD_URL, CONF_CONNECTION, CONNECTION_LOCAL, DOMAIN
 from .coordinator import AqualinkDataUpdateCoordinator
 from .entity import AqualinkEntity
 from .icl import IclManager, IclZone
-from .local import AqualinkdClient, LocalSystem
+from .local import (
+    AqualinkdClient,
+    LocalButton,
+    LocalNumber,
+    LocalSelect,
+    LocalSystem,
+)
 from .utils import error_detail
 from .watchdog import IclWatchdog
 
@@ -56,8 +62,11 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 PLATFORMS = [
     Platform.BINARY_SENSOR,
+    Platform.BUTTON,
     Platform.CLIMATE,
     Platform.LIGHT,
+    Platform.NUMBER,
+    Platform.SELECT,
     Platform.SENSOR,
     Platform.SWITCH,
 ]
@@ -81,6 +90,9 @@ class AqualinkRuntimeData:
     cloud_coordinators: dict[str, AqualinkDataUpdateCoordinator] = field(
         default_factory=dict
     )
+    buttons: list[LocalButton] = field(default_factory=list)
+    numbers: list[LocalNumber] = field(default_factory=list)
+    selects: list[LocalSelect] = field(default_factory=list)
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -250,7 +262,13 @@ async def _async_setup_system(
         devices = await _async_setup_local(hass, entry, runtime_data, coordinator)
 
     for dev in devices.values():
-        if isinstance(dev, AqualinkThermostat):
+        if isinstance(dev, LocalNumber):
+            runtime_data.numbers += [dev]
+        elif isinstance(dev, LocalSelect):
+            runtime_data.selects += [dev]
+        elif isinstance(dev, LocalButton):
+            runtime_data.buttons += [dev]
+        elif isinstance(dev, AqualinkThermostat):
             runtime_data.thermostats += [dev]
         elif isinstance(dev, AqualinkLight):
             runtime_data.lights += [dev]

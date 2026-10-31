@@ -692,4 +692,4 @@ async def test_pool_light_card_served(hass: HomeAssistant) -> None:
     (config,) = hass.http.async_register_static_paths.await_args.args[0]
     assert (config.url_path, config.path) == (CARD_URL, str(CARD_PATH))
     assert CARD_PATH.is_file()
-    assert add_js.call_args.args[1] == f"{CARD_URL}?v=2.0.0"
+    assert add_js.call_args.args[1] == f"{CARD_URL}?v=2.1.0"

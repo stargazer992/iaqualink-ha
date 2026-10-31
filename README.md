@@ -36,6 +36,16 @@ By default everything goes through the iAquaLink cloud. If you run [AqualinkD](h
 
 In Local mode, pumps, aux buttons, heaters, setpoints, temperatures, freeze protection, pH/ORP and the salt cell (`swg_percent`, and salt ppm in `pool_salinity`) come from AqualinkD's HTTP API, polled every 5 seconds. Entities keep the cloud's names and unique IDs, so dashboards and automations keep working when you switch. System status and Service mode read AqualinkD's panel status.
 
+Local mode also adds what AqualinkD's own Home Assistant discovery offers:
+
+- **Salt cell:** settable `swg_set_point` (%), `swg_boost` switch, salt ppm, and SWG status / boost message sensors.
+- **Pumps (variable speed):** RPM, GPM, watts, speed % and status sensors per pump, plus an RPM setpoint (vsPump) or GPM setpoint (vfPump).
+- **Setpoints:** freeze protection and chiller (if present) as number entities.
+- **Lights:** a program select for Jandy colour lights (Off plus the light's shows) and a brightness number for dimmers.
+- **Panel:** display message sensor, panel battery-low binary sensor, and a "Sync panel clock" button.
+- **Timers:** buttons running on a panel timer carry `timer_active` and `timer_remaining` (seconds) attributes.
+- **Extra sensors** configured in AqualinkD appear as sensors.
+
 The iCL light zones and their watchdog still use the cloud in Local mode, because AqualinkD has no iCL zone support. Keep the iAquaLink credentials in place.
 
 Turn off AqualinkD's own MQTT discovery for Home Assistant, otherwise HA gets a second set of entities for the same equipment.

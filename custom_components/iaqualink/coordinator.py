@@ -58,6 +58,7 @@ class AqualinkDataUpdateCoordinator(DataUpdateCoordinator[None]):
         if self.system.NAME == "iaqua":
             self.async_update_listeners()
             return
+        self.async_update_listeners()
         self.system.last_refresh = 0
         await self.async_request_refresh()
 

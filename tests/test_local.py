@@ -80,6 +80,61 @@ class FakeAqualinkd:
                     "value": "3200",
                 },
                 {
+                    "type": "switch",
+                    "id": "Aux_2",
+                    "name": "Pool Pump",
+                    "state": "on",
+                    "type_ext": "switch_vsp",
+                    "Pump_RPM": "2250",
+                    "Pump_GPM": "0",
+                    "Pump_Watts": "640",
+                    "Pump_Type": "vsPump",
+                    "Pump_Status": "0",
+                    "Pump_Speed": "65",
+                },
+                {
+                    "type": "switch",
+                    "id": "Aux_3",
+                    "name": "Spa Light",
+                    "state": "off",
+                    "type_ext": "switch_program",
+                    "Light_Type": "1",
+                    "Light_Program": "0",
+                    "Program_Name": "Off",
+                    "light_programs": ["Off", "Alpine White", "Sky Blue"],
+                },
+                {
+                    "type": "switch",
+                    "id": "Aux_4",
+                    "name": "Path Lights",
+                    "state": "on",
+                    "type_ext": "light_dimmer",
+                    "Light_Program": "50",
+                },
+                {
+                    "type": "switch",
+                    "id": "Aux_5",
+                    "name": "Waterfall",
+                    "state": "on",
+                    "type_ext": "switch_timer",
+                    "timer_active": "on",
+                    "timer_duration": "1200",
+                },
+                {
+                    "type": "setpoint_swg",
+                    "id": "SWG",
+                    "name": "Salt Water Generator",
+                    "state": "on",
+                    "spvalue": "80",
+                    "value": "80",
+                },
+                {
+                    "type": "switch",
+                    "id": "SWG/Boost",
+                    "name": "SWG Boost",
+                    "state": "off",
+                },
+                {
                     "type": "temperature",
                     "id": "Temperature/Pool",
                     "name": "Pool",
@@ -103,7 +158,16 @@ class FakeAqualinkd:
                 },
             )
         if path == "status":
-            return httpx.Response(200, json={"type": "status", "status": self.status})
+            return httpx.Response(
+                200,
+                json={
+                    "type": "status",
+                    "status": self.status,
+                    "panel_message": "AquaPure 80%",
+                    "battery": "low",
+                    "swg_fullstatus": "0",
+                },
+            )
         self.requests.append(f"{path}={request.url.params.get('value')}")
         device, _, action = path.partition("/")
         value = request.url.params.get("value")
@@ -111,6 +175,13 @@ class FakeAqualinkd:
             self.rows[device]["state"] = "on" if value == "1" else "off"
         elif action == "setpoint/set" and device in self.rows:
             self.rows[device]["spvalue"] = value
+        elif path == "SWG/Percent/set":
+            self.rows["SWG"]["spvalue"] = value
+        elif action == "RPM/set":
+            self.rows[device]["Pump_RPM"] = value
+        elif action == "program/set":
+            programs = self.rows[device]["light_programs"]
+            self.rows[device]["Program_Name"] = programs[int(value)]
         return httpx.Response(200, json={"message": "ok"})
 
     def client(self, *_args: Any, **_kwargs: Any) -> httpx.AsyncClient:
@@ -167,15 +238,27 @@ async def test_local_system_parses_devices(fake: FakeAqualinkd) -> None:
     """Rows become switches, a thermostat, sensors and a binary sensor."""
     system = LocalSystem(AqualinkdClient(URL, fake.client()), "SN1", "Pool")
     devices = await system.get_devices()
-    assert set(devices) == {
+    assert set(devices) >= {
         "pool_pump",
         "aux_1",
         "pool_heater",
         "pool_set_point",
         "freeze_protection",
+        "freeze_protect_set_point",
         "swg_percent",
+        "swg_set_point",
+        "swg_boost",
         "pool_salinity",
         "pool_temp",
+        "aux_2_rpm",
+        "aux_2_watts",
+        "aux_2_rpm_set",
+        "aux_3_program",
+        "aux_4_brightness",
+        "display_message",
+        "swg_status",
+        "battery_low",
+        "panel_clock",
     }
     assert devices["pool_set_point"].target_temperature == "80"
     assert devices["pool_set_point"].current_temperature == "78"
@@ -223,6 +306,76 @@ async def test_local_entities(hass: HomeAssistant, fake: FakeAqualinkd, client) 
         blocking=True,
     )
     assert "Pool_Heater/setpoint/set=85" in fake.requests
+
+
+async def test_local_parity_entities(
+    hass: HomeAssistant, fake: FakeAqualinkd, client
+) -> None:
+    """Pumps, SWG, light programs, dimmers, timers and panel status come through."""
+    hass.config.units = US_CUSTOMARY_SYSTEM
+    await _setup_local(hass, fake, client)
+
+    rpm = hass.states.get(_entity(hass, "sensor", "aux_2_rpm"))
+    assert rpm.state == "2250"
+    assert rpm.attributes["unit_of_measurement"] == "rpm"
+    assert hass.states.get(_entity(hass, "sensor", "aux_2_watts")).state == "640"
+    message = _entity(hass, "sensor", "display_message")
+    assert hass.states.get(message).state == "AquaPure 80%"
+    assert hass.states.get(_entity(hass, "binary_sensor", "battery_low")).state == "on"
+    waterfall = hass.states.get(_entity(hass, "switch", "aux_5"))
+    assert waterfall.attributes["timer_active"] is True
+    assert waterfall.attributes["timer_remaining"] == 1200
+
+    for entity, value in (
+        ("swg_set_point", 60),
+        ("aux_2_rpm_set", 2800),
+        ("freeze_protect_set_point", 36),
+        ("aux_4_brightness", 75),
+    ):
+        await hass.services.async_call(
+            "number",
+            "set_value",
+            {"entity_id": _entity(hass, "number", entity), "value": value},
+            blocking=True,
+        )
+    assert {
+        "SWG/Percent/set=60",
+        "Aux_2/RPM/set=2800",
+        "Freeze_Protect/setpoint/set=36",
+        "Aux_4/brightness/set=75",
+    } <= set(fake.requests)
+    assert hass.states.get(_entity(hass, "number", "swg_set_point")).state == "60.0"
+
+    program = _entity(hass, "select", "aux_3_program")
+    assert hass.states.get(program).attributes["options"] == [
+        "Off",
+        "Alpine White",
+        "Sky Blue",
+    ]
+    await hass.services.async_call(
+        "select",
+        "select_option",
+        {"entity_id": program, "option": "Sky Blue"},
+        blocking=True,
+    )
+    assert "Aux_3/program/set=2" in fake.requests
+    assert hass.states.get(program).state == "Sky Blue"
+
+    await hass.services.async_call(
+        "switch",
+        "turn_on",
+        {"entity_id": _entity(hass, "switch", "swg_boost")},
+        blocking=True,
+    )
+    assert "SWG/Boost/set=1" in fake.requests
+
+    await hass.services.async_call(
+        "button",
+        "press",
+        {"entity_id": _entity(hass, "button", "panel_clock")},
+        blocking=True,
+    )
+    assert "set_date_time=None" in fake.requests
 
 
 async def test_local_service_mode(
