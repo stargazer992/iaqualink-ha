@@ -5,7 +5,7 @@ A custom version of Home Assistant's built-in [iAquaLink integration](https://ww
 ## What's different from the built-in integration
 
 - **iCL light zones.** Each Jandy Infinite WaterColors (iCL) zone becomes a `light` entity with on/off, brightness (5% steps), colour presets as effects, and custom RGB colours. Turning a zone on uses the command sequence captured from the iAquaLink app. The built-in integration only shows `binary_sensor.is_icl_present`.
-- **Pool & Spa light card.** `custom:iaqualink-pool-light-card` is served and loaded by the integration, so you don't need a Lovelace resource for it.
+- **Pool & Spa light card.** `custom:iaqualink-pool-light-card` is served by the integration, which adds and updates its Lovelace resource itself (storage-mode resources; with YAML resources it is loaded as extra frontend JS instead).
 - **Fixes:**
   - EXO systems show the new state right after a command instead of after the next poll (up to about a minute).
   - A low brightness no longer switches a dimmable light off; it goes to 25%.

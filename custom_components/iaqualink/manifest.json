@@ -3,7 +3,8 @@
   "name": "Jandy iAquaLink",
   "after_dependencies": [
     "frontend",
-    "http"
+    "http",
+    "lovelace"
   ],
   "codeowners": [
     "@stargazer992"
@@ -26,5 +27,5 @@
     "h2>=4.3.0"
   ],
   "single_config_entry": true,
-  "version": "2.2.0"
+  "version": "2.2.1"
 }
