@@ -49,5 +49,21 @@
         "title": "Connect to iAquaLink"
       }
     }
+  },
+  "services": {
+    "set_next_on": {
+      "name": "Set next-on colour and brightness",
+      "description": "Sets the colour and brightness an iCL light zone comes on in. If the zone is on, it changes straight away.",
+      "fields": {
+        "rgb_color": {
+          "name": "Colour",
+          "description": "Red, green and blue (0-255 each)."
+        },
+        "brightness_pct": {
+          "name": "Brightness",
+          "description": "Brightness in percent."
+        }
+      }
+    }
   }
 }

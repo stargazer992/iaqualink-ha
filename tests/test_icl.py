@@ -19,6 +19,7 @@ import pytest
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
     mock_restore_cache,
+    mock_restore_cache_with_extra_data,
 )
 
 from custom_components.iaqualink import icl
@@ -104,6 +105,9 @@ class FakeIclCloud:
         return _response(self.info())
 
 
+BLUE = {"red_val": "0", "green_val": "100", "blue_val": "255", "white_val": "0"}
+
+
 def _sequence(zone: str, rgb: dict[str, str]) -> list[tuple[str, dict[str, str]]]:
     return [
         (icl.COMMAND_ON_OFF, {"zone_id": zone, "on_off_action": "off"}),
@@ -177,7 +181,10 @@ async def test_icl_turn_on_runs_app_sequence(
     _, cloud = await _setup_icl(hass, config_entry, client)
 
     await _call(hass, SERVICE_TURN_ON, entity_id=POOL)
-    assert cloud.calls == _sequence("1", TURQUOISE)
+    assert cloud.calls == [
+        *_sequence("1", TURQUOISE),
+        (icl.COMMAND_SET_COLOR, {"zone_id": "1", "dim_level": "50"}),
+    ]
     state = hass.states.get(POOL)
     assert state.state == STATE_ON
     assert state.attributes[ATTR_RGB_COLOR] == (27, 205, 255)
@@ -231,13 +238,18 @@ async def test_icl_preset_and_rgb(
     blue = {"red_val": "0", "green_val": "100", "blue_val": "255", "white_val": "0"}
 
     await _call(hass, SERVICE_TURN_ON, entity_id=POOL, effect="Blue")
-    assert cloud.calls == _sequence("1", blue)
+    assert cloud.calls == [
+        *_sequence("1", blue),
+        (icl.COMMAND_SET_COLOR, {"zone_id": "1", "dim_level": "50"}),
+    ]
     cloud.calls.clear()
 
     await _call(hass, SERVICE_TURN_ON, entity_id=POOL, rgb_color=(10, 20, 30))
-    assert cloud.calls == _sequence(
-        "1", {"red_val": "10", "green_val": "20", "blue_val": "30", "white_val": "0"}
-    )
+    rgb = {"red_val": "10", "green_val": "20", "blue_val": "30", "white_val": "0"}
+    assert cloud.calls == [
+        *_sequence("1", rgb),
+        (icl.COMMAND_SET_COLOR, {"zone_id": "1", "dim_level": "50"}),
+    ]
     state = hass.states.get(POOL)
     assert state.attributes[ATTR_RGB_COLOR] == (10, 20, 30)
     assert state.attributes[ATTR_EFFECT] is None
@@ -245,9 +257,10 @@ async def test_icl_preset_and_rgb(
 
     await _call(hass, SERVICE_TURN_OFF, entity_id=POOL)
     await _call(hass, SERVICE_TURN_ON, entity_id=POOL)
-    assert cloud.calls[1:] == _sequence(
-        "1", {"red_val": "10", "green_val": "20", "blue_val": "30", "white_val": "0"}
-    )
+    assert cloud.calls[1:] == [
+        *_sequence("1", rgb),
+        (icl.COMMAND_SET_COLOR, {"zone_id": "1", "dim_level": "50"}),
+    ]
 
 
 async def test_icl_stale_report_ignored_after_command(
@@ -281,16 +294,86 @@ async def test_icl_restores_unreported_state(
     assert state.state == STATE_ON
     assert state.attributes[ATTR_EFFECT] == "Blue"
     await _call(hass, SERVICE_TURN_ON, entity_id=SPA)
-    assert cloud.calls[-1] == (
-        icl.COMMAND_SET_CUSTOM_COLOR,
-        {
-            "zone_id": "2",
-            "red_val": "0",
-            "green_val": "100",
-            "blue_val": "255",
-            "white_val": "0",
-        },
+    assert cloud.calls[-2:] == [
+        (icl.COMMAND_SET_CUSTOM_COLOR, {"zone_id": "2", **BLUE}),
+        (icl.COMMAND_SET_COLOR, {"zone_id": "2", "dim_level": "5"}),
+    ]
+
+
+async def _next_on(hass: HomeAssistant, **data: Any) -> None:
+    await hass.services.async_call(
+        "iaqualink", "set_next_on", {"entity_id": POOL, **data}, blocking=True
     )
+
+
+async def test_icl_set_next_on_while_off_sends_nothing(
+    hass: HomeAssistant, config_entry: MockConfigEntry, client: AqualinkClient
+) -> None:
+    """set_next_on while off is only remembered; the next turn-on uses it."""
+    _, cloud = await _setup_icl(hass, config_entry, client)
+
+    await _next_on(hass, rgb_color=[0, 100, 255], brightness_pct=40)
+    assert cloud.calls == []
+    state = hass.states.get(POOL)
+    assert state.state == STATE_OFF
+    assert state.attributes["saved_rgb_color"] == [0, 100, 255]
+    assert state.attributes["saved_brightness_pct"] == 40
+
+    await _call(hass, SERVICE_TURN_ON, entity_id=POOL)
+    assert cloud.calls == [
+        *_sequence("1", BLUE),
+        (icl.COMMAND_SET_COLOR, {"zone_id": "1", "dim_level": "40"}),
+    ]
+
+
+async def test_icl_set_next_on_while_on_applies_now(
+    hass: HomeAssistant, config_entry: MockConfigEntry, client: AqualinkClient
+) -> None:
+    """set_next_on while on changes the zone straight away."""
+    _, cloud = await _setup_icl(hass, config_entry, client)
+    await _call(hass, SERVICE_TURN_ON, entity_id=POOL)
+    cloud.calls.clear()
+
+    await _next_on(hass, brightness_pct=50)
+    assert cloud.calls == [(icl.COMMAND_SET_COLOR, {"zone_id": "1", "dim_level": "50"})]
+
+
+async def test_icl_restores_saved_colour_while_off(
+    hass: HomeAssistant, config_entry: MockConfigEntry, client: AqualinkClient
+) -> None:
+    """A zone that was off at restart still comes on in its saved colour."""
+    mock_restore_cache_with_extra_data(
+        hass,
+        [
+            (
+                State(POOL, STATE_OFF),
+                {"saved_rgb_color": [0, 100, 255], "saved_brightness_pct": 40},
+            )
+        ],
+    )
+    _, cloud = await _setup_icl(hass, config_entry, client)
+
+    await _call(hass, SERVICE_TURN_ON, entity_id=POOL)
+    assert cloud.calls == [
+        *_sequence("1", BLUE),
+        (icl.COMMAND_SET_COLOR, {"zone_id": "1", "dim_level": "40"}),
+    ]
+
+
+async def test_icl_report_while_off_keeps_next_on(
+    hass: HomeAssistant, config_entry: MockConfigEntry, client: AqualinkClient
+) -> None:
+    """The cloud's last lit colour doesn't replace the next-on colour while off."""
+    _, cloud = await _setup_icl(hass, config_entry, client)
+    await _next_on(hass, rgb_color=[0, 100, 255], brightness_pct=40)
+
+    cloud.zones[1].update(
+        {"red_val": "255", "green_val": "0", "blue_val": "0", "dim_level": 90}
+    )
+    await config_entry.runtime_data.coordinators[SERIAL].async_refresh()
+    state = hass.states.get(POOL)
+    assert state.attributes["saved_rgb_color"] == [0, 100, 255]
+    assert state.attributes["saved_brightness_pct"] == 40
 
 
 async def test_dimmable_low_brightness_stays_on(
