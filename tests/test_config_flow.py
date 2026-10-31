@@ -9,15 +9,15 @@ from iaqualink.exception import (
     AqualinkServiceUnauthorizedException,
 )
 import pytest
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.iaqualink import DOMAIN, config_flow
+from homeassistant import config_entries
 from homeassistant.config_entries import SOURCE_DHCP, SOURCE_USER
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers.service_info.dhcp import DhcpServiceInfo
-
-from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 DHCP_DISCOVERY = DhcpServiceInfo(
     ip="192.168.1.23",
@@ -49,6 +49,7 @@ async def test_without_config(hass: HomeAssistant) -> None:
     """Test config flow with no configuration."""
     flow = config_flow.AqualinkFlowHandler()
     flow.hass = hass
+    flow.context = {"source": config_entries.SOURCE_USER}
     flow.context = {}
 
     result = await flow.async_step_user()
@@ -100,6 +101,7 @@ async def test_with_invalid_credentials(
     """Test config flow with invalid username and/or password."""
     flow = config_flow.AqualinkFlowHandler()
     flow.hass = hass
+    flow.context = {"source": config_entries.SOURCE_USER}
     flow.context = {}
 
     with patch(
@@ -129,6 +131,7 @@ async def test_cannot_connect_exception(
     """Test config flow encountering a connection-related exception."""
     flow = config_flow.AqualinkFlowHandler()
     flow.hass = hass
+    flow.context = {"source": config_entries.SOURCE_USER}
 
     with patch(
         "custom_components.iaqualink.config_flow.AqualinkClient.login",
@@ -147,6 +150,7 @@ async def test_with_existing_config(
     """Test config flow with existing configuration."""
     flow = config_flow.AqualinkFlowHandler()
     flow.hass = hass
+    flow.context = {"source": config_entries.SOURCE_USER}
     flow.context = {}
 
     with patch(
@@ -322,3 +326,25 @@ async def test_reauth_cannot_connect(
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "reauth_confirm"
     assert result["errors"] == {"base": "cannot_connect"}
+
+
+async def test_reauth_other_account_rejected(
+    hass: HomeAssistant, config_data: dict[str, str]
+) -> None:
+    """Reauth can't swap the entry over to a different account."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=config_data,
+        unique_id=config_data[CONF_USERNAME].lower(),
+    )
+    entry.add_to_hass(hass)
+
+    result = await entry.start_reauth_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {CONF_USERNAME: "someone-else@example.com", CONF_PASSWORD: "pw"},
+    )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "wrong_account"
+    assert entry.data == config_data

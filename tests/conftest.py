@@ -15,6 +15,7 @@ from iaqualink.systems.iaqua.device import (
 )
 from iaqualink.systems.iaqua.system import IaquaSystem
 import pytest
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.syrupy import HomeAssistantSnapshotExtension
 from syrupy.assertion import SnapshotAssertion
 
@@ -22,8 +23,6 @@ from custom_components.iaqualink import DOMAIN
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
-
-from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 pytest_plugins = ["pytest_homeassistant_custom_component"]
 

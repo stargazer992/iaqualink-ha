@@ -13,6 +13,7 @@ from iaqualink.exception import (
 from iaqualink.systems.iaqua.device import IaquaAuxSwitch
 from iaqualink.systems.iaqua.system import IaquaSystem
 import pytest
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 from syrupy.assertion import SnapshotAssertion
 
 from homeassistant.components.switch import DOMAIN as SWITCH_DOMAIN
@@ -33,8 +34,6 @@ from .conftest import (
     get_aqualink_system,
     setup_entry,
 )
-
-from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 
 async def test_setup(

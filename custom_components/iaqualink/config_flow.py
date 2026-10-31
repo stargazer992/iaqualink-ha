@@ -63,6 +63,8 @@ class AqualinkFlowHandler(ConfigFlow, domain=DOMAIN):
         errors = {}
 
         if user_input is not None:
+            await self.async_set_unique_id(user_input[CONF_USERNAME].lower())
+            self._abort_if_unique_id_configured()
             errors = await self._async_test_credentials(user_input)
             if not errors:
                 return self.async_create_entry(
@@ -93,6 +95,10 @@ class AqualinkFlowHandler(ConfigFlow, domain=DOMAIN):
             else self._get_reauth_entry()
         )
         if user_input is not None:
+            if config_entry.unique_id is not None:
+                # Credentials for a different account would orphan every entity.
+                await self.async_set_unique_id(user_input[CONF_USERNAME].lower())
+                self._abort_if_unique_id_mismatch(reason="wrong_account")
             errors = await self._async_test_credentials(user_input)
             if not errors:
                 return self.async_update_reload_and_abort(

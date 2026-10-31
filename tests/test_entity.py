@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 from iaqualink.client import AqualinkClient
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 from syrupy.assertion import SnapshotAssertion
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
 from .conftest import setup_integration
-
-from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 
 async def test_setup(
