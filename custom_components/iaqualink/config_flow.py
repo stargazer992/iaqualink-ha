@@ -13,14 +13,31 @@ import voluptuous as vol
 
 from homeassistant.config_entries import (
     SOURCE_RECONFIGURE,
+    ConfigEntry,
     ConfigFlow,
     ConfigFlowResult,
+    OptionsFlowWithReload,
 )
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
+from homeassistant.core import callback
 from homeassistant.helpers.httpx_client import get_async_client
+from homeassistant.helpers.selector import (
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
+)
 from homeassistant.util.ssl import SSL_ALPN_HTTP11_HTTP2
 
-from .const import DOMAIN
+from .const import (
+    CONF_AQUALINKD_URL,
+    CONF_CONNECTION,
+    CONNECTION_CLOUD,
+    CONNECTION_LOCAL,
+    DOMAIN,
+)
+from .local import AqualinkdClient, AqualinkdError
+
+DEFAULT_AQUALINKD_URL = "http://aqualinkd.local"
 
 CREDENTIALS_DATA_SCHEMA = vol.Schema(
     {
@@ -34,6 +51,12 @@ class AqualinkFlowHandler(ConfigFlow, domain=DOMAIN):
     """iAquaLink config flow."""
 
     VERSION = 1
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: ConfigEntry) -> AqualinkOptionsFlow:
+        """Return the Cloud / Local options flow."""
+        return AqualinkOptionsFlow()
 
     async def _async_test_credentials(
         self, user_input: dict[str, Any]
@@ -123,3 +146,50 @@ class AqualinkFlowHandler(ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         """Handle reconfiguration of the integration."""
         return await self.async_step_reauth_confirm(user_input)
+
+
+class AqualinkOptionsFlow(OptionsFlowWithReload):
+    """Choose whether equipment is controlled via the cloud or AqualinkD."""
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Pick the connection and, for Local, where AqualinkD runs."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            url = str(user_input.get(CONF_AQUALINKD_URL) or "").strip().rstrip("/")
+            if user_input[CONF_CONNECTION] == CONNECTION_LOCAL:
+                if not url.startswith(("http://", "https://")):
+                    errors[CONF_AQUALINKD_URL] = "invalid_url"
+                else:
+                    try:
+                        await AqualinkdClient(url, get_async_client(self.hass)).status()
+                    except AqualinkdError, ValueError:
+                        errors["base"] = "cannot_connect_aqualinkd"
+            if not errors:
+                return self.async_create_entry(
+                    data={
+                        CONF_CONNECTION: user_input[CONF_CONNECTION],
+                        CONF_AQUALINKD_URL: url or DEFAULT_AQUALINKD_URL,
+                    }
+                )
+        options = self.config_entry.options
+        schema = vol.Schema(
+            {
+                vol.Required(
+                    CONF_CONNECTION,
+                    default=options.get(CONF_CONNECTION, CONNECTION_CLOUD),
+                ): SelectSelector(
+                    SelectSelectorConfig(
+                        options=[CONNECTION_CLOUD, CONNECTION_LOCAL],
+                        mode=SelectSelectorMode.LIST,
+                        translation_key=CONF_CONNECTION,
+                    )
+                ),
+                vol.Optional(
+                    CONF_AQUALINKD_URL,
+                    default=options.get(CONF_AQUALINKD_URL, DEFAULT_AQUALINKD_URL),
+                ): str,
+            }
+        )
+        return self.async_show_form(step_id="init", data_schema=schema, errors=errors)

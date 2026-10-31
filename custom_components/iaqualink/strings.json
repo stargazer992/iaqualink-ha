@@ -65,5 +65,33 @@
         }
       }
     }
+  },
+  "options": {
+    "error": {
+      "cannot_connect_aqualinkd": "Couldn't reach AqualinkD at that address.",
+      "invalid_url": "Enter a URL starting with http:// or https://."
+    },
+    "step": {
+      "init": {
+        "title": "Connection",
+        "description": "Cloud uses the iAquaLink cloud. Local controls pumps, heaters and the salt cell through AqualinkD on your network; the iCL lights still use the cloud.",
+        "data": {
+          "connection": "Connection",
+          "aqualinkd_url": "AqualinkD address"
+        },
+        "data_description": {
+          "connection": "Where equipment commands are sent.",
+          "aqualinkd_url": "AqualinkD's web address, for example http://aqualinkd.local or http://192.168.1.50:80. Only used for Local."
+        }
+      }
+    }
+  },
+  "selector": {
+    "connection": {
+      "options": {
+        "cloud": "Cloud (iAquaLink)",
+        "local": "Local (AqualinkD)"
+      }
+    }
   }
 }
