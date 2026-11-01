@@ -32,9 +32,18 @@ async def async_get_config_entry_diagnostics(
     hass: HomeAssistant, entry: AqualinkConfigEntry
 ) -> dict[str, Any]:
     """Return diagnostics for a config entry."""
+    runtime_data = entry.runtime_data
+    coordinators = [
+        *runtime_data.coordinators.values(),
+        *runtime_data.cloud_coordinators.values(),
+    ]
     systems = [
         {
+            "type": coordinator.system.NAME,
             "online": coordinator.system.online,
+            "raw": coordinator.icl.raw
+            if coordinator.icl is not None
+            else getattr(coordinator.system, "raw", {}),
             "data": {k: v for k, v in coordinator.system.data.items() if k != "name"},
             "devices": {
                 name: {"class": obj.__class__.__name__, "data": obj.data}
@@ -43,7 +52,7 @@ async def async_get_config_entry_diagnostics(
                 ).items()
             },
         }
-        for coordinator in entry.runtime_data.coordinators.values()
+        for coordinator in coordinators
     ]
 
     return {"systems": async_redact_data(systems, TO_REDACT)}

@@ -51,10 +51,10 @@ def no_delays() -> Generator[None]:
 
 @pytest.fixture
 def notifications() -> Generator[tuple[MagicMock, MagicMock]]:
-    """Capture the watchdog's persistent notifications."""
+    """Capture the watchdog's repair issues."""
     with (
-        patch.object(watchdog.persistent_notification, "async_create") as create,
-        patch.object(watchdog.persistent_notification, "async_dismiss") as dismiss,
+        patch.object(watchdog.ir, "async_create_issue") as create,
+        patch.object(watchdog.ir, "async_delete_issue") as dismiss,
     ):
         yield create, dismiss
 
@@ -213,19 +213,20 @@ async def test_watchdog_alerts_after_two_failed_passes(
 
     await wd.async_run_pass()
     assert wd.failures[1] == 1
-    create.assert_not_called()
+    assert not [c for c in create.call_args_list if c.args[1] == "iaqualink"]
 
     zone._hold_until = 0
     await wd.async_run_pass()
     assert wd.failures[1] == 2
-    create.assert_called_once()
-    assert "Pool light has not turned on" in create.call_args.args[1]
+    assert len([c for c in create.call_args_list if c.args[1] == "iaqualink"]) == 1
+    placeholders = create.call_args.kwargs["translation_placeholders"]
+    assert (placeholders["zone"], placeholders["desired"]) == ("Pool", "on")
 
     system._send_session_request.side_effect = send
     zone._hold_until = 0
     await wd.async_run_pass()
     assert wd.failures[1] == 0
-    dismiss.assert_called_once()
+    assert len([c for c in dismiss.call_args_list if c.args[1] == "iaqualink"]) == 1
 
 
 async def test_watchdog_does_not_count_a_system_that_went_down(

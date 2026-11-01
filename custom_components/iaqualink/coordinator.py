@@ -13,9 +13,16 @@ from iaqualink.exception import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .const import DOMAIN, UPDATE_INTERVAL_BY_SYSTEM_TYPE, UPDATE_INTERVAL_DEFAULT
+from .const import (
+    AQUALINKD_ISSUE_FAILURES,
+    DOMAIN,
+    UPDATE_INTERVAL_BY_SYSTEM_TYPE,
+    UPDATE_INTERVAL_CLOUD_IDLE,
+    UPDATE_INTERVAL_DEFAULT,
+)
 from .icl import IclManager
 from .utils import error_detail
 
@@ -47,6 +54,10 @@ class AqualinkDataUpdateCoordinator(DataUpdateCoordinator[None]):
         self.system = system
         self.icl: IclManager | None = None
         self.watchdog: IclWatchdog | None = None
+        # Local mode: the cloud coordinator kept for the lights and as fallback.
+        self.cloud: AqualinkDataUpdateCoordinator | None = None
+        self.cloud_idle = False
+        self.local_failures = 0
 
     async def async_refresh_after_command(self) -> None:
         """Show the result of a command.
@@ -70,9 +81,43 @@ class AqualinkDataUpdateCoordinator(DataUpdateCoordinator[None]):
             await self._async_update_system()
             reachable = True
         finally:
+            if self.system.NAME == "aqualinkd":
+                self._local_result(reachable)
             if self.watchdog is not None:
                 self.watchdog.reachable = reachable
                 self.watchdog.async_check()
+
+    @property
+    def local_issue_id(self) -> str:
+        """Return the repair issue raised while AqualinkD doesn't answer."""
+        return f"aqualinkd_unreachable_{self.system.serial}"
+
+    def _local_result(self, reachable: bool) -> None:
+        """Raise or clear the repair issue and pace the cloud fallback."""
+        if reachable:
+            if self.local_failures >= AQUALINKD_ISSUE_FAILURES:
+                ir.async_delete_issue(self.hass, DOMAIN, self.local_issue_id)
+                _LOGGER.info("AqualinkD answers again; leaving the cloud fallback")
+            self.local_failures = 0
+            if self.cloud is not None and self.cloud_idle:
+                self.cloud.update_interval = UPDATE_INTERVAL_CLOUD_IDLE
+            return
+        self.local_failures += 1
+        if self.cloud is not None and self.local_failures == 1:
+            # Keep the stand-in values fresh while AqualinkD is away.
+            self.cloud.update_interval = UPDATE_INTERVAL_BY_SYSTEM_TYPE["iaqua"]
+            self.hass.async_create_task(self.cloud.async_request_refresh())
+        if self.local_failures == AQUALINKD_ISSUE_FAILURES:
+            _LOGGER.warning("AqualinkD is not answering; using the iAquaLink cloud")
+            ir.async_create_issue(
+                self.hass,
+                DOMAIN,
+                self.local_issue_id,
+                is_fixable=False,
+                severity=ir.IssueSeverity.WARNING,
+                translation_key="aqualinkd_unreachable",
+                translation_placeholders={"url": self.system.client.base_url},
+            )
 
     async def _async_update_system(self) -> None:
         try:

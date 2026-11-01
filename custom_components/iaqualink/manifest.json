@@ -23,9 +23,9 @@
     "iaqualink"
   ],
   "requirements": [
-    "iaqualink==0.7.0",
+    "iaqualink>=0.7.0",
     "h2>=4.3.0"
   ],
   "single_config_entry": true,
-  "version": "2.2.1"
+  "version": "2.3.0"
 }

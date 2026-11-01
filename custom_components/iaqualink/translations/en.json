@@ -81,7 +81,7 @@
         },
         "data_description": {
           "connection": "Where equipment commands are sent.",
-          "aqualinkd_url": "AqualinkD's web address, for example http://aqualinkd.local or http://192.168.1.50:80. Only used for Local."
+          "aqualinkd_url": "AqualinkD's web address, for example {example_url}. Only used for Local."
         }
       }
     }
@@ -92,6 +92,16 @@
         "cloud": "Cloud (iAquaLink)",
         "local": "Local (AqualinkD)"
       }
+    }
+  },
+  "issues": {
+    "aqualinkd_unreachable": {
+      "title": "AqualinkD is not answering",
+      "description": "Home Assistant can't reach AqualinkD at {url}. Pool equipment is using the iAquaLink cloud until AqualinkD answers again."
+    },
+    "icl_watchdog": {
+      "title": "{zone} light is not responding",
+      "description": "The {zone} light has not turned {desired} after {count} tries (about {minutes} min). The light watchdog keeps trying, and this notice clears itself once the light follows."
     }
   }
 }

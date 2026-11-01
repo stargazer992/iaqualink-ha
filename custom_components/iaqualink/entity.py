@@ -47,6 +47,14 @@ class AqualinkEntity[AqualinkDeviceT: AqualinkDevice](
 
     @property
     @override
+    def available(self) -> bool:
+        """Stay available while the cloud stands in for AqualinkD."""
+        if getattr(self.dev, "using_fallback", False):
+            return True
+        return super().available
+
+    @property
+    @override
     def assumed_state(self) -> bool:
         """Return whether the state is based on actual reading from the device."""
         return self.dev.system.online in [False, None]

@@ -1,5 +1,6 @@
 """Component to embed Aqualink devices."""
 
+import asyncio
 from collections.abc import Awaitable, Callable, Coroutine
 from dataclasses import dataclass, field
 from functools import wraps
@@ -7,6 +8,7 @@ import logging
 from pathlib import Path
 from typing import Any, Concatenate
 
+import aiohttp
 import httpx
 from iaqualink.client import AqualinkClient
 from iaqualink.device import (
@@ -34,19 +36,34 @@ from homeassistant.exceptions import (
     ConfigEntryError,
     ConfigEntryNotReady,
 )
-from homeassistant.helpers import config_validation as cv, device_registry as dr
+from homeassistant.helpers import (
+    config_validation as cv,
+    device_registry as dr,
+    issue_registry as ir,
+)
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.httpx_client import get_async_client
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.loader import async_get_integration
 from homeassistant.util.ssl import SSL_ALPN_HTTP11_HTTP2
 
-from .const import CONF_AQUALINKD_URL, CONF_CONNECTION, CONNECTION_LOCAL, DOMAIN
+from .const import (
+    AQUALINKD_RETRY_SECONDS,
+    CONF_AQUALINKD_URL,
+    CONF_CONNECTION,
+    CONNECTION_LOCAL,
+    DOMAIN,
+    UPDATE_INTERVAL_AQUALINKD_PUSH,
+    UPDATE_INTERVAL_BY_SYSTEM_TYPE,
+    UPDATE_INTERVAL_CLOUD_IDLE,
+)
 from .coordinator import AqualinkDataUpdateCoordinator
 from .entity import AqualinkEntity
 from .icl import IclManager, IclZone
 from .local import (
     AqualinkdClient,
+    AqualinkdError,
     LocalButton,
     LocalNumber,
     LocalSelect,
@@ -333,6 +350,13 @@ async def _async_setup_system(
             for zone in coordinator.icl.zones.values():
                 zone.local = local.infinite.get(zone.label.casefold())
                 zone.sync_local()
+            local_coordinator = runtime_data.coordinators[system.serial]
+            local_coordinator.cloud = coordinator
+            local_coordinator.cloud_idle = all(
+                zone.local is not None for zone in coordinator.icl.zones.values()
+            )
+            if local_coordinator.cloud_idle:
+                coordinator.update_interval = UPDATE_INTERVAL_CLOUD_IDLE
         if coordinator.icl.zones:
             coordinator.watchdog = IclWatchdog(hass, coordinator, coordinator.icl)
 
@@ -351,12 +375,73 @@ async def _async_setup_local(
         system.name,
     )
     coordinator = AqualinkDataUpdateCoordinator(hass, entry, local)
-    await coordinator.async_config_entry_first_refresh()
+    await coordinator.async_refresh()
+    if not local.devices:
+        # AqualinkD is down at startup: run on the cloud, reload once it answers.
+        _LOGGER.warning(
+            "AqualinkD at %s is not answering; using the iAquaLink cloud for now",
+            local.client.base_url,
+        )
+        ir.async_create_issue(
+            hass,
+            DOMAIN,
+            coordinator.local_issue_id,
+            is_fixable=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key="aqualinkd_unreachable",
+            translation_placeholders={"url": local.client.base_url},
+        )
+        entry.async_create_background_task(
+            hass, _async_wait_for_aqualinkd(hass, entry, local), "aqualinkd_retry"
+        )
+        return await system.get_devices()
+    ir.async_delete_issue(hass, DOMAIN, coordinator.local_issue_id)
     runtime_data.coordinators[system.serial] = coordinator
     runtime_data.cloud_coordinators[system.serial] = cloud
     # Nothing but the iCL lights listens to the cloud now; keep it polling.
     entry.async_on_unload(cloud.async_add_listener(lambda: None))
-    return await local.get_devices()
+    devices = await local.get_devices()
+    cloud_devices = getattr(system, "devices", None) or {}
+    for dev in devices.values():
+        dev.fallback = cloud_devices.get(dev.name)
+    entry.async_create_background_task(
+        hass, _async_aqualinkd_push(hass, coordinator, local), "aqualinkd_push"
+    )
+    return devices
+
+
+async def _async_wait_for_aqualinkd(
+    hass: HomeAssistant, entry: AqualinkConfigEntry, local: LocalSystem
+) -> None:
+    """Reload the entry once AqualinkD answers, to switch from the cloud."""
+    while True:
+        await asyncio.sleep(AQUALINKD_RETRY_SECONDS)
+        try:
+            await local.client.status()
+        except AqualinkdError:
+            continue
+        _LOGGER.info("AqualinkD answers; reloading to use it")
+        hass.config_entries.async_schedule_reload(entry.entry_id)
+        return
+
+
+async def _async_aqualinkd_push(
+    hass: HomeAssistant, coordinator: AqualinkDataUpdateCoordinator, local: LocalSystem
+) -> None:
+    """Refresh as soon as AqualinkD's websocket reports a change."""
+    session = async_get_clientsession(hass)
+    polling = UPDATE_INTERVAL_BY_SYSTEM_TYPE["aqualinkd"]
+    while True:
+        try:
+            async with session.ws_connect(local.client.ws_url, heartbeat=30) as ws:
+                coordinator.update_interval = UPDATE_INTERVAL_AQUALINKD_PUSH
+                async for message in ws:
+                    if message.type is aiohttp.WSMsgType.TEXT:
+                        await coordinator.async_request_refresh()
+        except (aiohttp.ClientError, TimeoutError) as err:
+            _LOGGER.debug("AqualinkD websocket: %s", err)
+        coordinator.update_interval = polling
+        await asyncio.sleep(AQUALINKD_RETRY_SECONDS)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: AqualinkConfigEntry) -> bool:
