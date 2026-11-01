@@ -266,11 +266,15 @@ class IclManager:
         self.use_get_info = False
         self.system_status: str | None = None
         self._last_get_info = 0.0
+        # Last raw cloud screens, for diagnostics (e.g. finding the SWG value).
+        self.raw: dict[str, Any] = {}
         original_home = system._parse_home_response  # noqa: SLF001
 
         def parse_home(response: Any) -> None:
             try:
-                self.system_status = response.json()["home_screen"][0]["status"]
+                data = response.json()
+                self.raw["home_screen"] = data
+                self.system_status = data["home_screen"][0]["status"]
             except ValueError, KeyError, IndexError, TypeError:
                 self.system_status = None
             original_home(response)
@@ -284,6 +288,7 @@ class IclManager:
                 data = response.json()
             except ValueError:
                 return
+            self.raw["devices_screen"] = data
             if isinstance(data, dict) and "icl_info_list" in data:
                 self.in_devices = True
                 self.update(data["icl_info_list"])

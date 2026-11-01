@@ -1,12 +1,18 @@
 """Support for Aqualink temperature sensors."""
 
+import time
 from typing import override
 
 from iaqualink.device import AqualinkSensor
 
-from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
-from homeassistant.const import UnitOfTemperature
-from homeassistant.core import HomeAssistant
+from homeassistant.components.sensor import (
+    RestoreSensor,
+    SensorDeviceClass,
+    SensorEntity,
+    SensorStateClass,
+)
+from homeassistant.const import UnitOfEnergy, UnitOfPower, UnitOfTemperature
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import AqualinkConfigEntry
@@ -15,6 +21,9 @@ from .entity import AqualinkEntity
 from .status import STATUS_OPTIONS, AqualinkSystemEntity, system_status
 
 PARALLEL_UPDATES = 0
+
+# Numeric readings that get long-term statistics.
+MEASUREMENTS = {"pool_salinity", "spa_salinity", "ph", "orp", "swg_percent"}
 
 
 async def async_setup_entry(
@@ -29,6 +38,13 @@ async def async_setup_entry(
         )
         for dev in config_entry.runtime_data.sensors
     ]
+    entities.extend(
+        HassAqualinkPumpEnergySensor(
+            config_entry.runtime_data.coordinators[dev.system.serial], dev
+        )
+        for dev in config_entry.runtime_data.sensors
+        if getattr(dev, "ha_unit", None) == UnitOfPower.WATT
+    )
     entities.extend(
         HassAqualinkSystemStatusSensor(coordinator)
         for coordinator in config_entry.runtime_data.coordinators.values()
@@ -64,8 +80,13 @@ class HassAqualinkSensor(AqualinkEntity[AqualinkSensor], SensorEntity):
     ) -> None:
         """Initialize AquaLink sensor."""
         super().__init__(coordinator, dev)
-        if unit := getattr(dev, "ha_unit", None):
+        unit = getattr(dev, "ha_unit", None)
+        if unit:
             self._attr_native_unit_of_measurement = unit
+        if unit == UnitOfPower.WATT:
+            self._attr_device_class = SensorDeviceClass.POWER
+        if unit or dev.name.endswith("_temp") or dev.name in MEASUREMENTS:
+            self._attr_state_class = SensorStateClass.MEASUREMENT
         if not dev.name.endswith("_temp"):
             return
         self._attr_device_class = SensorDeviceClass.TEMPERATURE
@@ -89,3 +110,54 @@ class HassAqualinkSensor(AqualinkEntity[AqualinkSensor], SensorEntity):
             return float(self.dev.state)
         except ValueError:
             return self.dev.state
+
+
+class HassAqualinkPumpEnergySensor(AqualinkEntity[AqualinkSensor], RestoreSensor):
+    """Pump energy in kWh, summed from AqualinkD's watts for the Energy dashboard."""
+
+    _attr_name = "Energy"
+    _attr_device_class = SensorDeviceClass.ENERGY
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+    _attr_suggested_display_precision = 2
+
+    def __init__(
+        self, coordinator: AqualinkDataUpdateCoordinator, dev: AqualinkSensor
+    ) -> None:
+        """Initialize from the pump's watts sensor."""
+        super().__init__(coordinator, dev)
+        self._attr_unique_id = f"{dev.system.serial}_{dev.name}_energy"
+        self._kwh = 0.0
+        self._last: tuple[float, float] | None = None
+
+    async def async_added_to_hass(self) -> None:
+        """Carry the total across restarts."""
+        await super().async_added_to_hass()
+        if (last := await self.async_get_last_sensor_data()) is not None:
+            try:
+                self._kwh = float(last.native_value or 0)
+            except TypeError, ValueError:
+                self._kwh = 0.0
+        self._sample()
+
+    def _sample(self) -> None:
+        try:
+            watts = float(self.dev.state)
+        except TypeError, ValueError:
+            self._last = None
+            return
+        now = time.monotonic()
+        if self._last is not None:
+            previous, then = self._last
+            self._kwh += previous * (now - then) / 3_600_000
+        self._last = (watts, now)
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        self._sample()
+        super()._handle_coordinator_update()
+
+    @property
+    def native_value(self) -> float:
+        """Return the total energy."""
+        return round(self._kwh, 3)

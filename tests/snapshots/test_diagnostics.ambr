@@ -23,6 +23,9 @@
           }),
         }),
         'online': True,
+        'raw': dict({
+        }),
+        'type': 'iaqua',
       }),
     ]),
   })

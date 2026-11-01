@@ -213,7 +213,11 @@ async def _setup_local(
     system.devices = {}
     system.get_devices = AsyncMock(return_value={})
     entry = _local_entry()
-    with patch("custom_components.iaqualink.get_async_client", fake.client):
+    with (
+        patch("custom_components.iaqualink.get_async_client", fake.client),
+        patch("custom_components.iaqualink._async_aqualinkd_push", AsyncMock()),
+        patch("custom_components.iaqualink._async_wait_for_aqualinkd", AsyncMock()),
+    ):
         await setup_entry(hass, entry, system)
     return entry
 
@@ -391,10 +395,13 @@ async def test_local_service_mode(
 async def test_local_unreachable_retries(
     hass: HomeAssistant, fake: FakeAqualinkd, client
 ) -> None:
-    """If AqualinkD is down at startup the entry retries setup."""
+    """If AqualinkD is down at startup the entry runs on the cloud and says so."""
+    from homeassistant.helpers import issue_registry as ir  # noqa: PLC0415
+
     fake.down = True
     entry = await _setup_local(hass, fake, client)
-    assert entry.state is ConfigEntryState.SETUP_RETRY
+    assert entry.state is ConfigEntryState.LOADED
+    assert ir.async_get(hass).async_get_issue(DOMAIN, "aqualinkd_unreachable_SN00001")
 
 
 async def test_options_flow(hass: HomeAssistant, fake: FakeAqualinkd) -> None:
@@ -500,3 +507,73 @@ async def test_infinite_light_falls_back_to_cloud(fake: FakeAqualinkd) -> None:
         await zone.turn_on((0, 100, 255), None)
     commands = [call.args[0] for call in cloud_send.call_args_list]
     assert commands == ["onoff_iclzone", "onoff_iclzone", "define_iclzone_customcolor"]
+
+
+async def test_local_falls_back_to_cloud(
+    hass: HomeAssistant, fake: FakeAqualinkd, client
+) -> None:
+    """While AqualinkD is away the cloud device stands in, then a repair shows."""
+    from datetime import timedelta  # noqa: PLC0415
+
+    from pytest_homeassistant_custom_component.common import (  # noqa: PLC0415
+        async_fire_time_changed,
+    )
+
+    from custom_components.iaqualink.local import LocalSwitch  # noqa: PLC0415
+    from homeassistant.helpers import issue_registry as ir  # noqa: PLC0415
+    from homeassistant.util import dt as dt_util  # noqa: PLC0415
+
+    entry = await _setup_local(hass, fake, client)
+    pump = _entity(hass, "switch", "pool_pump")
+    coordinator = entry.runtime_data.coordinators["SN00001"]
+    dev = next(
+        d for d in coordinator.system.devices.values() if isinstance(d, LocalSwitch)
+    )
+    cloud = AsyncMock()
+    cloud.system.online = True
+    cloud.is_on = False
+    dev = coordinator.system.devices["pool_pump"]
+    dev.fallback = cloud
+
+    fake.down = True
+    for minutes in (1, 2, 3):
+        async_fire_time_changed(hass, dt_util.utcnow() + timedelta(minutes=minutes))
+        await hass.async_block_till_done()
+    assert dev.using_fallback
+    assert hass.states.get(pump).state == "off"
+    await hass.services.async_call(
+        "switch", "turn_on", {"entity_id": pump}, blocking=True
+    )
+    cloud.turn_on.assert_awaited_once()
+    assert ir.async_get(hass).async_get_issue(DOMAIN, coordinator.local_issue_id)
+
+    fake.down = False
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(minutes=5))
+    await hass.async_block_till_done()
+    assert not dev.using_fallback
+    assert (
+        ir.async_get(hass).async_get_issue(DOMAIN, coordinator.local_issue_id) is None
+    )
+
+
+async def test_pump_energy_and_statistics(
+    hass: HomeAssistant, fake: FakeAqualinkd, client
+) -> None:
+    """Pump watts get a kWh total; numeric readings are measurements."""
+    await _setup_local(hass, fake, client)
+    watts = hass.states.get(_entity(hass, "sensor", "aux_2_watts"))
+    assert watts.attributes["state_class"] == "measurement"
+    assert watts.attributes["device_class"] == "power"
+    energy = hass.states.get(_entity(hass, "sensor", "aux_2_watts_energy"))
+    assert energy.attributes["unit_of_measurement"] == "kWh"
+    assert energy.attributes["state_class"] == "total_increasing"
+    message = hass.states.get(_entity(hass, "sensor", "display_message"))
+    assert "state_class" not in message.attributes
+
+
+def test_ws_url() -> None:
+    """The websocket is the same host with ws://."""
+    assert AqualinkdClient("http://aqualinkd.local", None).ws_url == (
+        "ws://aqualinkd.local/"
+    )
+    assert AqualinkdClient("https://pi:8443/", None).ws_url == "wss://pi:8443/"

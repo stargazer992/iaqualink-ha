@@ -93,5 +93,15 @@
         "local": "Local (AqualinkD)"
       }
     }
+  },
+  "issues": {
+    "aqualinkd_unreachable": {
+      "title": "AqualinkD is not answering",
+      "description": "Home Assistant can't reach AqualinkD at {url}. Pool equipment is using the iAquaLink cloud until AqualinkD answers again."
+    },
+    "icl_watchdog": {
+      "title": "{zone} light is not responding",
+      "description": "The {zone} light has not turned {desired} after {count} tries (about {minutes} min). The light watchdog keeps trying, and this notice clears itself once the light follows."
+    }
   }
 }

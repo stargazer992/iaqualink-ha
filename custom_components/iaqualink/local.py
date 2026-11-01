@@ -82,6 +82,11 @@ class AqualinkdClient:
         self.base_url = base_url.rstrip("/")
         self._http = httpx_client
 
+    @property
+    def ws_url(self) -> str:
+        """Return AqualinkD's websocket, which pushes a status message on changes."""
+        return re.sub(r"^http", "ws", self.base_url) + "/"
+
     async def _get(self, path: str, **params: Any) -> httpx.Response:
         try:
             response = await self._http.get(
@@ -125,6 +130,7 @@ class LocalSystem(AqualinkSystem):
         self.last_refresh = 0
         # Infinite WaterColors buttons by label; they drive the iCL light zones.
         self.infinite: dict[str, LocalInfiniteLight] = {}
+        self.raw: dict[str, Any] = {}
 
     @override
     async def get_devices(self) -> dict[str, AqualinkDevice]:
@@ -140,6 +146,7 @@ class LocalSystem(AqualinkSystem):
         except AqualinkdError:
             self.online = False
             raise
+        self.raw = {"devices": devices, "status": status}
         self.status_text = str(status.get("status") or "")
         self.online = not self.status_text.startswith(OFFLINE_PREFIXES)
         if devices.get("temp_units") in ("F", "C"):
@@ -326,6 +333,17 @@ class LocalDevice(AqualinkDevice):
     """A device row from AqualinkD's /api/devices."""
 
     system: LocalSystem
+    # The cloud device with the same name; used while AqualinkD is unreachable.
+    fallback: Any = None
+
+    @property
+    def using_fallback(self) -> bool:
+        """Return whether the cloud stands in for AqualinkD right now."""
+        return (
+            self.system.online is False
+            and self.fallback is not None
+            and getattr(self.fallback.system, "online", None) is True
+        )
 
     @property
     def aqd_id(self) -> str:
@@ -372,6 +390,8 @@ class LocalSensor(LocalDevice, AqualinkSensor):
     @property
     @override
     def state(self) -> str:
+        if self.using_fallback:
+            return str(self.fallback.state)
         value = str(self.data.get("value", "")).strip()
         return "" if value in ("", "-999", "-999.0") else value
 
@@ -382,6 +402,8 @@ class LocalBinarySensor(LocalDevice, AqualinkBinarySensor):
     @property
     @override
     def is_on(self) -> bool:
+        if self.using_fallback:
+            return bool(self.fallback.is_on)
         return self.data.get("state") == "on"
 
 
@@ -391,9 +413,14 @@ class LocalSwitch(LocalDevice, AqualinkSwitch):
     @property
     @override
     def is_on(self) -> bool:
+        if self.using_fallback:
+            return bool(self.fallback.is_on)
         return self.data.get("state") == "on"
 
     async def _set(self, on: bool) -> None:
+        if self.using_fallback:
+            await (self.fallback.turn_on() if on else self.fallback.turn_off())
+            return
         await self.system.client.command(f"{self.aqd_id}/set", 1 if on else 0)
         self.data["state"] = "on" if on else "off"
 
@@ -414,6 +441,8 @@ class LocalThermostat(LocalSwitch, AqualinkThermostat):
     @property
     @override
     def state(self) -> str:
+        if self.using_fallback:
+            return str(self.fallback.state)
         return str(self.data.get("spvalue", ""))
 
     @property
@@ -424,6 +453,8 @@ class LocalThermostat(LocalSwitch, AqualinkThermostat):
     @property
     @override
     def current_temperature(self) -> str:
+        if self.using_fallback:
+            return str(self.fallback.current_temperature)
         return str(self.data.get("value", ""))
 
     @property
@@ -443,6 +474,9 @@ class LocalThermostat(LocalSwitch, AqualinkThermostat):
 
     @override
     async def set_temperature(self, temperature: int) -> None:
+        if self.using_fallback:
+            await self.fallback.set_temperature(temperature)
+            return
         await self.system.client.command(
             f"{self.aqd_id}/setpoint/set", int(temperature)
         )

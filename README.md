@@ -48,6 +48,13 @@ Local mode also adds what AqualinkD's own Home Assistant discovery offers:
 
 **iCL light zones in Local mode:** AqualinkD 3.1.1 (dev) and later can drive Jandy Infinite WaterColors lights. Add one virtual button per zone in `aqualinkd.conf` with `light_mode=7`, the zone's `lightID`, and a label matching the zone name in the iAquaLink app (e.g. `Pool Lights`). AqualinkD needs `enable_iaqualink=yes` and an `extended_device_id` of 0x30 to 0x33. When a button's label matches a zone, `light.<zone>` sends on/off, RGB and brightness to AqualinkD, follows AqualinkD's on/off state, and pauses the cloud watchdog for that zone. If AqualinkD refuses or is down, the command falls back to the cloud's captured iCL sequence. Zones with no matching button stay on the cloud, so keep the iAquaLink credentials in place.
 
+**Local mode behaviour:**
+
+- **Instant updates:** the integration listens to AqualinkD's websocket and refreshes as soon as anything changes. It polls every 60 s as a safety net, or every 5 s while the websocket is down.
+- **Cloud fallback:** while AqualinkD doesn't answer, each equipment entity uses the matching cloud device, so pumps and heaters stay available and controllable. After 3 failed polls a repair issue appears; it clears when AqualinkD is back. If AqualinkD is down when HA starts, the entry starts on the cloud and reloads itself once AqualinkD answers.
+- **Less cloud traffic:** when AqualinkD drives every light zone, the cloud is polled every 5 minutes instead of every 15 s. It goes back to 15 s during a fallback.
+- **Energy:** each variable-speed pump gets an `..._energy` kWh sensor, summed from its watts, for the Energy dashboard. Numeric readings have `state_class: measurement` for long-term statistics.
+
 Turn off AqualinkD's own MQTT discovery for Home Assistant, otherwise HA gets a second set of entities for the same equipment.
 
 Local mode has only been tested against a simulated AqualinkD. Device ids that differ on a real panel (for example `Extra_Aux`, `Aux_V*`) may need mapping.

@@ -10,8 +10,8 @@ from typing import TYPE_CHECKING
 import httpx
 from iaqualink.exception import AqualinkServiceException
 
-from homeassistant.components import persistent_notification
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import issue_registry as ir
 
 from .const import DOMAIN
 from .icl import SYSTEM_ONLINE, SYSTEM_SERVICE, IclManager, IclZone
@@ -141,13 +141,11 @@ class IclWatchdog:
 
     def _record(self, zone: IclZone, *, ok: bool, resent: bool = False) -> None:
         previous = self.failures.get(zone.zone_id, 0)
-        notification_id = (
-            f"{DOMAIN}_icl_watchdog_{self.manager.system.serial}_{zone.zone_id}"
-        )
+        issue_id = f"icl_watchdog_{self.manager.system.serial}_{zone.zone_id}"
         if ok:
             self.failures[zone.zone_id] = 0
             if previous >= MAX_FAILURES:
-                persistent_notification.async_dismiss(self.hass, notification_id)
+                ir.async_delete_issue(self.hass, DOMAIN, issue_id)
             if resent:
                 _LOGGER.info("iCL watchdog: %s is back in sync", zone.label)
                 self._fire(zone, "fixed", 0)
@@ -162,12 +160,19 @@ class IclWatchdog:
         )
         self._fire(zone, "failed", count)
         if count == MAX_FAILURES:
-            persistent_notification.async_create(
+            ir.async_create_issue(
                 self.hass,
-                f"{zone.label} light has not turned {_word(zone.desired_on)} "
-                f"after {count} tries (about {count * 15} min).",
-                title="Pool light watchdog",
-                notification_id=notification_id,
+                DOMAIN,
+                issue_id,
+                is_fixable=False,
+                severity=ir.IssueSeverity.WARNING,
+                translation_key="icl_watchdog",
+                translation_placeholders={
+                    "zone": zone.label,
+                    "desired": _word(zone.desired_on),
+                    "count": str(count),
+                    "minutes": str(count * 15),
+                },
             )
 
     def _fire(self, zone: IclZone, result: str, failures: int) -> None:
