@@ -112,6 +112,29 @@ It has the same look and controls as `fleur-pool-light-card` v1.2.0, but it driv
 
 You can go back at any time by removing this integration from HACS and restarting; the built-in integration takes over again.
 
+## What this fork adds (release history)
+
+| Release | What changed |
+|---|---|
+| v1.0.0 | Fork of HA 2026.9.1's `iaqualink`. Native iCL light zones (`light.pool_lights`, `light.spa_lights`) using the captured turn-on sequence (off, 2 s, on, 1 s, custom colour), colour presets and brightness. Bundled Pool & Spa light card. Fixes from a review of the built-in integration. |
+| v1.1.0 | iCL watchdog: re-sends a zone that didn't follow, and pauses while the cloud or controller is offline or in Service mode. |
+| v1.1.1 | Each zone keeps its colour and brightness across restarts. The `iaqualink.set_next_on` service sets the next turn-on colour without lighting the zone. |
+| v1.2.0 | `System status` sensor (Online / Offline / Service) and `Service mode` binary sensor. |
+| v2.0.0 | Cloud / Local (AqualinkD) connection option. Local mode keeps the same entity IDs and adds salt ppm and SWG %. |
+| v2.1.0 | Local parity with AqualinkD's HA discovery: SWG setpoint and Boost, pump RPM/GPM/watts with setpoints, freeze and chiller setpoints, light programs, dimmers, display message, panel battery, clock sync, timers. |
+| v2.2.0 | Local mode can drive the iCL zones through AqualinkD Infinite WaterColors buttons, falling back to the cloud. |
+| v2.2.1 | The light card registers itself as a Lovelace resource, fixing "Custom element doesn't exist". |
+| v2.3.0 | AqualinkD websocket push, automatic cloud fallback, repair issues, long-term statistics and pump energy (kWh), slower cloud polling when the lights are local, raw cloud data in diagnostics, CI. |
+
+**Waiting on hardware (AqualinkD Radxa kit not yet wired):** everything in Local mode has only been tested against a simulated AqualinkD. Still to do once it's connected:
+
+- map the panel's real device ids;
+- read each iCL zone's `lightID` with `rs485mon`;
+- check that `enable_iaqualink` works alongside the iAquaLink 3.0 adapter;
+- test pumps, heaters and lights on the real equipment.
+
+**Known next step:** the cloud sends the salt cell output (`swc_info`: `swcPoolValue`, `swcPoolStatus`) and the iaqualink library drops it. A cloud SWG % sensor can read it from there.
+
 ## Development
 
 ```bash
