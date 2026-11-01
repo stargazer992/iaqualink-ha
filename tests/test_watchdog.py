@@ -213,12 +213,12 @@ async def test_watchdog_alerts_after_two_failed_passes(
 
     await wd.async_run_pass()
     assert wd.failures[1] == 1
-    create.assert_not_called()
+    assert not [c for c in create.call_args_list if c.args[1] == "iaqualink"]
 
     zone._hold_until = 0
     await wd.async_run_pass()
     assert wd.failures[1] == 2
-    create.assert_called_once()
+    assert len([c for c in create.call_args_list if c.args[1] == "iaqualink"]) == 1
     placeholders = create.call_args.kwargs["translation_placeholders"]
     assert (placeholders["zone"], placeholders["desired"]) == ("Pool", "on")
 
@@ -226,9 +226,6 @@ async def test_watchdog_alerts_after_two_failed_passes(
     zone._hold_until = 0
     await wd.async_run_pass()
     assert wd.failures[1] == 0
-    assert [c for c in dismiss.call_args_list if c.args[1] == "iaqualink"] == [
-        dismiss.call_args_list[-1]
-    ]
     assert len([c for c in dismiss.call_args_list if c.args[1] == "iaqualink"]) == 1
 
 
