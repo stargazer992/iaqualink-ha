@@ -226,7 +226,10 @@ async def test_watchdog_alerts_after_two_failed_passes(
     zone._hold_until = 0
     await wd.async_run_pass()
     assert wd.failures[1] == 0
-    dismiss.assert_called_once()
+    assert [c for c in dismiss.call_args_list if c.args[1] == "iaqualink"] == [
+        dismiss.call_args_list[-1]
+    ]
+    assert len([c for c in dismiss.call_args_list if c.args[1] == "iaqualink"]) == 1
 
 
 async def test_watchdog_does_not_count_a_system_that_went_down(
