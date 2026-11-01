@@ -192,4 +192,9 @@ class AqualinkOptionsFlow(OptionsFlowWithReload):
                 ): str,
             }
         )
-        return self.async_show_form(step_id="init", data_schema=schema, errors=errors)
+        return self.async_show_form(
+            step_id="init",
+            data_schema=schema,
+            errors=errors,
+            description_placeholders={"example_url": DEFAULT_AQUALINKD_URL},
+        )

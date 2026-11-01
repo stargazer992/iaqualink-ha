@@ -81,7 +81,7 @@
         },
         "data_description": {
           "connection": "Where equipment commands are sent.",
-          "aqualinkd_url": "AqualinkD's web address, for example http://aqualinkd.local or http://192.168.1.50:80. Only used for Local."
+          "aqualinkd_url": "AqualinkD's web address, for example {example_url}. Only used for Local."
         }
       }
     }
