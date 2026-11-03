@@ -268,7 +268,7 @@ class LocalSystem(AqualinkSystem):
                         },
                     )
             pump_type = row.get("Pump_Type")
-            if pump_type == "vsPump":
+            if pump_type in ("vsPump", "ePump"):  # Jandy ePump is RPM-driven
                 self._number(
                     f"{name}_rpm_set",
                     f"{label} RPM setpoint",
