@@ -1,20 +1,23 @@
 """Tests for the Local (AqualinkD) connection."""
 
+import asyncio
 from typing import Any
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import aiohttp
 import httpx
 from iaqualink.systems.iaqua.system import IaquaSystem
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.iaqualink import local
+from custom_components.iaqualink import _async_aqualinkd_push, local
 from custom_components.iaqualink.const import (
     CONF_AQUALINKD_URL,
     CONF_CONNECTION,
     CONNECTION_CLOUD,
     CONNECTION_LOCAL,
     DOMAIN,
+    UPDATE_INTERVAL_BY_SYSTEM_TYPE,
 )
 from custom_components.iaqualink.local import (
     AqualinkdClient,
@@ -632,3 +635,27 @@ async def test_local_thermostat_hides_no_reading(fake: FakeAqualinkd) -> None:
     for dev in thermostats:
         dev.data["value"] = "-999"
         assert dev.current_temperature == ""
+
+
+async def test_push_refreshes_when_websocket_drops(hass: HomeAssistant) -> None:
+    """A dropped AqualinkD websocket polls at once, so Status goes Offline."""
+    coordinator = MagicMock()
+    coordinator.async_request_refresh = AsyncMock()
+    local = MagicMock()
+    local.client.ws_url = "ws://aqualinkd/"
+    session = MagicMock()
+    session.ws_connect.side_effect = aiohttp.ClientError("closed")
+    with (
+        patch(
+            "custom_components.iaqualink.async_get_clientsession",
+            return_value=session,
+        ),
+        patch(
+            "custom_components.iaqualink.asyncio.sleep",
+            AsyncMock(side_effect=asyncio.CancelledError),
+        ),
+        pytest.raises(asyncio.CancelledError),
+    ):
+        await _async_aqualinkd_push(hass, coordinator, local)
+    coordinator.async_request_refresh.assert_awaited_once()
+    assert coordinator.update_interval == UPDATE_INTERVAL_BY_SYSTEM_TYPE["aqualinkd"]

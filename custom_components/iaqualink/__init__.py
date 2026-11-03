@@ -467,6 +467,9 @@ async def _async_aqualinkd_push(
         except (aiohttp.ClientError, TimeoutError) as err:
             _LOGGER.debug("AqualinkD websocket: %s", err)
         coordinator.update_interval = polling
+        # A dropped websocket usually means AqualinkD is restarting; poll now so
+        # Status shows Offline instead of waiting for the next push-mode poll.
+        await coordinator.async_request_refresh()
         await asyncio.sleep(AQUALINKD_RETRY_SECONDS)
 
 
