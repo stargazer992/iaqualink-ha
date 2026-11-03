@@ -6,6 +6,7 @@ from iaqualink.client import AqualinkClient
 from iaqualink.exception import AqualinkServiceException
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.iaqualink.const import CLOUD_GRACE_FAILURES
 from homeassistant.const import STATE_OFF, STATE_ON
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
@@ -48,5 +49,8 @@ async def test_status_online_service_offline(
     system._parse_home_response(_response(_home("Online")))
     system.update.side_effect = AqualinkServiceException("cloud down")
     await coordinator.async_refresh()
+    assert hass.states.get(status).state == "Online"
+    for _ in range(CLOUD_GRACE_FAILURES - 1):
+        await coordinator.async_refresh()
     assert hass.states.get(status).state == "Offline"
     assert hass.states.get(service).state == STATE_OFF

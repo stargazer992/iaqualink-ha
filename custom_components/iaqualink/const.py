@@ -16,6 +16,8 @@ UPDATE_INTERVAL_AQUALINKD_PUSH = timedelta(seconds=60)
 UPDATE_INTERVAL_CLOUD_IDLE = timedelta(minutes=5)
 AQUALINKD_RETRY_SECONDS = 60
 AQUALINKD_ISSUE_FAILURES = 3
+# Failed cloud polls to ride out on the last known state before going unavailable.
+CLOUD_GRACE_FAILURES = 3
 
 CONF_CONNECTION = "connection"
 CONF_AQUALINKD_URL = "aqualinkd_url"

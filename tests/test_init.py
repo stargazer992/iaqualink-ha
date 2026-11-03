@@ -18,7 +18,10 @@ from pytest_homeassistant_custom_component.common import (
     async_fire_time_changed,
 )
 
-from custom_components.iaqualink.const import UPDATE_INTERVAL_BY_SYSTEM_TYPE
+from custom_components.iaqualink.const import (
+    CLOUD_GRACE_FAILURES,
+    UPDATE_INTERVAL_BY_SYSTEM_TYPE,
+)
 from homeassistant.components.binary_sensor import DOMAIN as BINARY_SENSOR_DOMAIN
 from homeassistant.components.climate import DOMAIN as CLIMATE_DOMAIN
 from homeassistant.components.light import DOMAIN as LIGHT_DOMAIN
@@ -89,11 +92,43 @@ async def test_system_refresh_failure_marks_entities_unavailable(
 
     devices.system.update = AsyncMock(side_effect=fail_update)
 
+    for _ in range(CLOUD_GRACE_FAILURES - 1):
+        await _advance_coordinator_time(hass, freezer)
+        state = hass.states.get(entity_id)
+        assert state is not None
+        assert state.state == STATE_ON
+        assert not state.attributes.get(ATTR_ASSUMED_STATE)
+
     await _advance_coordinator_time(hass, freezer)
 
     state = hass.states.get(entity_id)
     assert state is not None
     assert state.state == STATE_UNAVAILABLE
+
+
+async def test_single_missed_poll_keeps_state(
+    hass: HomeAssistant,
+    config_entry: MockConfigEntry,
+    client: AqualinkClient,
+    freezer: FrozenDateTimeFactory,
+) -> None:
+    """A cloud timeout between good polls doesn't flap entities."""
+    devices = await setup_integration(hass, config_entry, client)
+    entity_id = hass.states.async_entity_ids(LIGHT_DOMAIN)[0]
+    good_update = devices.system.update
+
+    async def fail_update() -> None:
+        devices.system.online = None
+        raise httpx.ConnectTimeout("timed out")
+
+    for _ in range(3):
+        devices.system.update = AsyncMock(side_effect=fail_update)
+        await _advance_coordinator_time(hass, freezer)
+        assert hass.states.get(entity_id).state == STATE_ON
+        assert devices.system.online is True
+        devices.system.update = good_update
+        await _advance_coordinator_time(hass, freezer)
+        assert hass.states.get(entity_id).state == STATE_ON
 
 
 async def test_system_rate_limited_keeps_entities_available(
@@ -692,7 +727,7 @@ async def test_pool_light_card_served(hass: HomeAssistant) -> None:
     (config,) = hass.http.async_register_static_paths.await_args.args[0]
     assert (config.url_path, config.path) == (CARD_URL, str(CARD_PATH))
     assert CARD_PATH.is_file()
-    assert add_js.call_args.args[1] == f"{CARD_URL}?v=2.3.0"
+    assert add_js.call_args.args[1] == f"{CARD_URL}?v=2.3.1"
 
 
 async def test_pool_light_card_resource(hass: HomeAssistant) -> None:
@@ -721,7 +756,7 @@ async def test_pool_light_card_resource(hass: HomeAssistant) -> None:
 
     add_js.assert_not_called()
     resources.async_update_item.assert_awaited_once_with(
-        "b", {"res_type": "module", "url": f"{CARD_URL}?v=2.3.0"}
+        "b", {"res_type": "module", "url": f"{CARD_URL}?v=2.3.1"}
     )
     resources.async_delete_item.assert_awaited_once_with("c")
     resources.async_create_item.assert_not_called()
@@ -730,5 +765,5 @@ async def test_pool_light_card_resource(hass: HomeAssistant) -> None:
     with patch("homeassistant.components.frontend.add_extra_js_url"):
         assert await async_setup(hass, {})
     resources.async_create_item.assert_awaited_once_with(
-        {"res_type": "module", "url": f"{CARD_URL}?v=2.3.0"}
+        {"res_type": "module", "url": f"{CARD_URL}?v=2.3.1"}
     )

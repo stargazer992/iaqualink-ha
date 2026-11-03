@@ -18,6 +18,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .const import (
     AQUALINKD_ISSUE_FAILURES,
+    CLOUD_GRACE_FAILURES,
     DOMAIN,
     UPDATE_INTERVAL_BY_SYSTEM_TYPE,
     UPDATE_INTERVAL_CLOUD_IDLE,
@@ -58,6 +59,7 @@ class AqualinkDataUpdateCoordinator(DataUpdateCoordinator[None]):
         self.cloud: AqualinkDataUpdateCoordinator | None = None
         self.cloud_idle = False
         self.local_failures = 0
+        self.cloud_failures = 0
 
     async def async_refresh_after_command(self) -> None:
         """Show the result of a command.
@@ -78,8 +80,7 @@ class AqualinkDataUpdateCoordinator(DataUpdateCoordinator[None]):
         """Refresh internal state for a system, then let the watchdog look."""
         reachable = False
         try:
-            await self._async_update_system()
-            reachable = True
+            reachable = await self._async_update_system()
         finally:
             if self.system.NAME == "aqualinkd":
                 self._local_result(reachable)
@@ -119,7 +120,9 @@ class AqualinkDataUpdateCoordinator(DataUpdateCoordinator[None]):
                 translation_placeholders={"url": self.system.client.base_url},
             )
 
-    async def _async_update_system(self) -> None:
+    async def _async_update_system(self) -> bool:
+        """Update the system; return False while riding out a failed poll."""
+        online = self.system.online
         try:
             await self.system.update()
         except AqualinkServiceUnauthorizedException as err:
@@ -129,13 +132,31 @@ class AqualinkDataUpdateCoordinator(DataUpdateCoordinator[None]):
                 "Rate limited by iAquaLink system %s, will retry later",
                 self.system.serial,
             )
-            return
+            return True
         except (AqualinkServiceException, TimeoutError, httpx.HTTPError) as err:
+            self.cloud_failures += 1
+            if (
+                online is True
+                and self.last_update_success
+                and self.system.NAME != "aqualinkd"
+                and self.cloud_failures < CLOUD_GRACE_FAILURES
+            ):
+                # A single cloud timeout is common; keep the last known state
+                # rather than flapping every entity to unavailable.
+                self.system.online = online
+                _LOGGER.debug(
+                    "iAquaLink system %s missed a poll (%s); keeping last state",
+                    self.system.serial,
+                    error_detail(err),
+                )
+                return False
             raise UpdateFailed(
                 "Unable to update iAquaLink system "
                 f"{self.system.serial}: {error_detail(err)}"
             ) from err
+        self.cloud_failures = 0
         if self.system.online is not True:
             raise UpdateFailed(f"iAquaLink system {self.system.serial} is offline")
         if self.icl is not None:
             await self.icl.async_poll()
+        return True

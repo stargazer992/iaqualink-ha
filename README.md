@@ -125,6 +125,7 @@ You can go back at any time by removing this integration from HACS and restartin
 | v2.2.0 | Local mode can drive the iCL zones through AqualinkD Infinite WaterColors buttons, falling back to the cloud. |
 | v2.2.1 | The light card registers itself as a Lovelace resource, fixing "Custom element doesn't exist". |
 | v2.3.0 | AqualinkD websocket push, automatic cloud fallback, repair issues, long-term statistics and pump energy (kWh), slower cloud polling when the lights are local, raw cloud data in diagnostics, CI. |
+| v2.3.1 | Rides out up to two failed cloud polls (e.g. a ConnectTimeout) on the last known state instead of flapping every entity, and the status sensor, to unavailable/Offline. |
 
 **Waiting on hardware (AqualinkD Radxa kit not yet wired):** everything in Local mode has only been tested against a simulated AqualinkD. Still to do once it's connected:
 
