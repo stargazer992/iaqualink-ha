@@ -29,6 +29,7 @@ CLOUD_NAMES = {
     "Pool_Heater": "pool_heater",
     "Spa_Heater": "spa_heater",
     "Freeze_Protect": "freeze_protection",
+    "Extra_Aux": "aux_EA",
     "Temperature/Air": "air_temp",
     "Temperature/Pool": "pool_temp",
     "Temperature/Spa": "spa_temp",
@@ -50,6 +51,8 @@ UNITS = {
     "SWG/PPM": "ppm",
     "CHEM/ORP": "mV",
 }
+VIRTUAL_AUX = re.compile(r"Aux_V(\d+)")
+
 # AqualinkD's Light_Type for Jandy Infinite WaterColors (virtual button, mode 7).
 INFINITE_LIGHT_TYPE = "7"
 
@@ -67,6 +70,11 @@ def cloud_name(aqd_id: str) -> str:
     """Return the cloud's name for an AqualinkD device id."""
     if aqd_id in CLOUD_NAMES:
         return CLOUD_NAMES[aqd_id]
+    # The cloud names virtual aux V1-V24 by bank: aux_B1-B8, aux_C1-C8, aux_D1-D8.
+    if match := VIRTUAL_AUX.fullmatch(aqd_id):
+        num = int(match[1]) - 1
+        if num < 24:
+            return f"aux_{'BCD'[num // 8]}{num % 8 + 1}"
     return re.sub(r"[^a-z0-9]+", "_", aqd_id.lower()).strip("_")
 
 

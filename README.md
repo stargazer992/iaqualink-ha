@@ -46,7 +46,7 @@ Local mode also adds what AqualinkD's own Home Assistant discovery offers:
 - **Timers:** buttons running on a panel timer carry `timer_active` and `timer_remaining` (seconds) attributes.
 - **Extra sensors** configured in AqualinkD appear as sensors.
 
-**iCL light zones in Local mode:** AqualinkD 3.1.1 (dev) and later can drive Jandy Infinite WaterColors lights. Add one virtual button per zone in `aqualinkd.conf` with `light_mode=7`, the zone's `lightID`, and a label matching the zone name in the iAquaLink app (e.g. `Pool Lights`). AqualinkD needs `enable_iaqualink=yes` and an `extended_device_id` of 0x30 to 0x33. When a button's label matches a zone, `light.<zone>` sends on/off, RGB and brightness to AqualinkD, follows AqualinkD's on/off state, and pauses the cloud watchdog for that zone. If AqualinkD refuses or is down, the command falls back to the cloud's captured iCL sequence. Zones with no matching button stay on the cloud, so keep the iAquaLink credentials in place.
+**iCL light zones in Local mode:** AqualinkD 3.1.1 (dev) and later can drive Jandy Infinite WaterColors lights. Add one virtual button per zone in `aqualinkd.conf` (`virtual_button_NN_label`, `virtual_button_NN_lightMode=7`, `virtual_button_NN_lightID=0x..`) with the zone's `lightID`, and a label matching the zone name in the iAquaLink app (e.g. `Pool Lights`). AqualinkD needs `enable_iaqualink=yes` and an `extended_device_id` of 0x30 to 0x33. When a button's label matches a zone, `light.<zone>` sends on/off, RGB and brightness to AqualinkD, follows AqualinkD's on/off state, and pauses the cloud watchdog for that zone. If AqualinkD refuses or is down, the command falls back to the cloud's captured iCL sequence. Zones with no matching button stay on the cloud, so keep the iAquaLink credentials in place.
 
 **Local mode behaviour:**
 
@@ -57,7 +57,9 @@ Local mode also adds what AqualinkD's own Home Assistant discovery offers:
 
 Turn off AqualinkD's own MQTT discovery for Home Assistant, otherwise HA gets a second set of entities for the same equipment.
 
-Local mode has only been tested against a simulated AqualinkD. Device ids that differ on a real panel (for example `Extra_Aux`, `Aux_V*`) may need mapping.
+AqualinkD's virtual aux buttons `Aux_V1`-`Aux_V24` map to the cloud's `aux_B1`-`aux_D8`, and `Extra_Aux` to `aux_EA`, so those entities keep their IDs. AqualinkD only exposes virtual buttons listed in `aqualinkd.conf` (`virtual_button_01_label` onwards, in order, labelled as on the panel), so list every one you use. Put WaterColors buttons after V24 so they don't take a panel button's number.
+
+Local mode has only been tested against a simulated AqualinkD.
 
 ## iCL lights
 
@@ -126,6 +128,7 @@ You can go back at any time by removing this integration from HACS and restartin
 | v2.2.1 | The light card registers itself as a Lovelace resource, fixing "Custom element doesn't exist". |
 | v2.3.0 | AqualinkD websocket push, automatic cloud fallback, repair issues, long-term statistics and pump energy (kWh), slower cloud polling when the lights are local, raw cloud data in diagnostics, CI. |
 | v2.3.1 | Rides out up to two failed cloud polls (e.g. a ConnectTimeout) on the last known state instead of flapping every entity, and the status sensor, to unavailable/Offline. |
+| v2.3.2 | Local mode keeps the cloud's IDs for virtual aux buttons (`Aux_V1`-`V24` to `aux_B1`-`aux_D8`) and Extra Aux (`aux_EA`), so their entities don't change when switching to Local. |
 
 **Waiting on hardware (AqualinkD Radxa kit not yet wired):** everything in Local mode has only been tested against a simulated AqualinkD. Still to do once it's connected:
 

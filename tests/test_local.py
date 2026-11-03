@@ -234,7 +234,13 @@ def test_cloud_names() -> None:
     """AqualinkD ids map onto the cloud's device names."""
     assert cloud_name("Filter_Pump") == "pool_pump"
     assert cloud_name("Aux_3") == "aux_3"
-    assert cloud_name("Aux_V1") == "aux_v1"
+    assert cloud_name("Aux_V1") == "aux_B1"
+    assert cloud_name("Aux_V8") == "aux_B8"
+    assert cloud_name("Aux_V10") == "aux_C2"
+    assert cloud_name("Aux_V20") == "aux_D4"
+    assert cloud_name("Aux_V24") == "aux_D8"
+    assert cloud_name("Aux_V25") == "aux_v25"
+    assert cloud_name("Extra_Aux") == "aux_EA"
     assert cloud_name("SWG/PPM") == "pool_salinity"
 
 
@@ -470,8 +476,8 @@ async def test_infinite_light_drives_zone(fake: FakeAqualinkd) -> None:
     """A matching Infinite WaterColors button takes the zone's commands."""
     zone, system, cloud_send = _infinite_zone(fake)
     devices = await system.get_devices()
-    assert "aux_v1" not in devices
-    assert "aux_v1_program" not in devices
+    assert "aux_B1" not in devices
+    assert "aux_B1_program" not in devices
     zone.local = system.infinite["pool lights"]
 
     await zone.turn_on((0, 100, 255), 40)
