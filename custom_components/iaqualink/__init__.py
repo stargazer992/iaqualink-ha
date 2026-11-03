@@ -30,7 +30,7 @@ from homeassistant.const import (
     EVENT_HOMEASSISTANT_STARTED,
     Platform,
 )
-from homeassistant.core import CoreState, Event, HomeAssistant
+from homeassistant.core import CoreState, Event, HomeAssistant, callback
 from homeassistant.exceptions import (
     ConfigEntryAuthFailed,
     ConfigEntryError,
@@ -291,23 +291,37 @@ async def _async_setup_system(
     runtime_data.coordinators[system.serial] = coordinator
     if system.NAME == "iaqua":
         coordinator.icl = IclManager(system)
-    await coordinator.async_config_entry_first_refresh()
-
+    local_mode = (
+        entry.options.get(CONF_CONNECTION) == CONNECTION_LOCAL
+        and system.NAME == "iaqua"
+    )
+    cloud_up = True
     try:
-        devices = await system.get_devices()
-    except AqualinkServiceUnauthorizedException as auth_exception:
-        raise ConfigEntryAuthFailed(
-            "Invalid credentials for iAquaLink"
-        ) from auth_exception
-    except (
-        AqualinkServiceException,
-        TimeoutError,
-        httpx.HTTPError,
-    ) as svc_exception:
-        raise ConfigEntryNotReady(
-            "Error while attempting to retrieve devices list: "
-            f"{error_detail(svc_exception)}"
-        ) from svc_exception
+        await coordinator.async_config_entry_first_refresh()
+    except ConfigEntryNotReady as err:
+        if not local_mode:
+            raise
+        # AqualinkD runs the equipment on its own; the iCL zones join later.
+        _LOGGER.warning("iAquaLink cloud is not ready (%s); starting on AqualinkD", err)
+        cloud_up = False
+
+    devices: dict[str, Any] = {}
+    if cloud_up:
+        try:
+            devices = await system.get_devices()
+        except AqualinkServiceUnauthorizedException as auth_exception:
+            raise ConfigEntryAuthFailed(
+                "Invalid credentials for iAquaLink"
+            ) from auth_exception
+        except (
+            AqualinkServiceException,
+            TimeoutError,
+            httpx.HTTPError,
+        ) as svc_exception:
+            raise ConfigEntryNotReady(
+                "Error while attempting to retrieve devices list: "
+                f"{error_detail(svc_exception)}"
+            ) from svc_exception
 
     device_registry = dr.async_get(hass)
     device_registry.async_get_or_create(
@@ -318,11 +332,10 @@ async def _async_setup_system(
         serial_number=system.serial,
     )
 
-    if (
-        entry.options.get(CONF_CONNECTION) == CONNECTION_LOCAL
-        and system.NAME == "iaqua"
-    ):
-        devices = await _async_setup_local(hass, entry, runtime_data, coordinator)
+    if local_mode:
+        devices = await _async_setup_local(
+            hass, entry, runtime_data, coordinator, cloud_up
+        )
 
     for dev in devices.values():
         if isinstance(dev, LocalNumber):
@@ -352,7 +365,7 @@ async def _async_setup_system(
                 zone.sync_local()
             local_coordinator = runtime_data.coordinators[system.serial]
             local_coordinator.cloud = coordinator
-            local_coordinator.cloud_idle = all(
+            local_coordinator.cloud_idle = cloud_up and all(
                 zone.local is not None for zone in coordinator.icl.zones.values()
             )
             if local_coordinator.cloud_idle:
@@ -366,6 +379,7 @@ async def _async_setup_local(
     entry: AqualinkConfigEntry,
     runtime_data: AqualinkRuntimeData,
     cloud: AqualinkDataUpdateCoordinator,
+    cloud_up: bool = True,
 ) -> dict[str, Any]:
     """Take the equipment from AqualinkD; the cloud keeps only the iCL zones."""
     system = cloud.system
@@ -377,6 +391,11 @@ async def _async_setup_local(
     coordinator = AqualinkDataUpdateCoordinator(hass, entry, local)
     await coordinator.async_refresh()
     if not local.devices:
+        if not cloud_up:
+            raise ConfigEntryNotReady(
+                f"Neither AqualinkD at {local.client.base_url} "
+                "nor the iAquaLink cloud is answering"
+            )
         # AqualinkD is down at startup: run on the cloud, reload once it answers.
         _LOGGER.warning(
             "AqualinkD at %s is not answering; using the iAquaLink cloud for now",
@@ -398,8 +417,15 @@ async def _async_setup_local(
     ir.async_delete_issue(hass, DOMAIN, coordinator.local_issue_id)
     runtime_data.coordinators[system.serial] = coordinator
     runtime_data.cloud_coordinators[system.serial] = cloud
+
+    @callback
+    def _cloud_listener() -> None:
+        # Started without the cloud: reload once it is back to add the iCL zones.
+        if not cloud_up and cloud.last_update_success and system.online is True:
+            hass.config_entries.async_schedule_reload(entry.entry_id)
+
     # Nothing but the iCL lights listens to the cloud now; keep it polling.
-    entry.async_on_unload(cloud.async_add_listener(lambda: None))
+    entry.async_on_unload(cloud.async_add_listener(_cloud_listener))
     devices = await local.get_devices()
     cloud_devices = getattr(system, "devices", None) or {}
     for dev in devices.values():
