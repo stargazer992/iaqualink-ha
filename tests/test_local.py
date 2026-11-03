@@ -288,6 +288,17 @@ async def test_local_epump_rpm_setpoint(fake: FakeAqualinkd) -> None:
     assert "aux_2_rpm_set" in devices
 
 
+async def test_local_thermostat_hides_no_reading(fake: FakeAqualinkd) -> None:
+    """AqualinkD's -999 (no water flow past the sensor) reads as no temperature."""
+    system = LocalSystem(AqualinkdClient(URL, fake.client()), "SN1", "Pool")
+    devices = await system.get_devices()
+    thermostats = [d for d in devices.values() if hasattr(d, "current_temperature")]
+    assert thermostats
+    for dev in thermostats:
+        dev.data["value"] = "-999"
+        assert dev.current_temperature == ""
+
+
 async def test_local_speed_switch_sets_rpm(fake: FakeAqualinkd) -> None:
     """A "Filter 3450" virtual button runs the filter pump at 3450 RPM."""
     fake.rows["Filter_Pump"].update(

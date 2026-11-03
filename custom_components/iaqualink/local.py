@@ -502,7 +502,8 @@ class LocalThermostat(LocalSwitch, AqualinkThermostat):
     def current_temperature(self) -> str:
         if self.using_fallback:
             return str(self.fallback.current_temperature)
-        return str(self.data.get("value", ""))
+        value = str(self.data.get("value", "")).strip()
+        return "" if value in ("-999", "-999.0") else value
 
     @property
     @override
