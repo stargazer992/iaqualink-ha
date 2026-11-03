@@ -129,6 +129,7 @@ You can go back at any time by removing this integration from HACS and restartin
 | v2.3.0 | AqualinkD websocket push, automatic cloud fallback, repair issues, long-term statistics and pump energy (kWh), slower cloud polling when the lights are local, raw cloud data in diagnostics, CI. |
 | v2.3.1 | Rides out up to two failed cloud polls (e.g. a ConnectTimeout) on the last known state instead of flapping every entity, and the status sensor, to unavailable/Offline. |
 | v2.3.2 | Local mode keeps the cloud's IDs for virtual aux buttons (`Aux_V1`-`V24` to `aux_B1`-`aux_D8`) and Extra Aux (`aux_EA`), so their entities don't change when switching to Local. |
+| v2.3.3 | Local mode starts on AqualinkD even while the iAquaLink cloud is offline; the iCL zones are added once the cloud is back. |
 
 **Waiting on hardware (AqualinkD Radxa kit not yet wired):** everything in Local mode has only been tested against a simulated AqualinkD. Still to do once it's connected:
 

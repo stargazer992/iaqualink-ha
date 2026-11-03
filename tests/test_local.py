@@ -203,12 +203,12 @@ def _local_entry() -> MockConfigEntry:
 
 
 async def _setup_local(
-    hass: HomeAssistant, fake: FakeAqualinkd, client
+    hass: HomeAssistant, fake: FakeAqualinkd, client, online: bool = True
 ) -> MockConfigEntry:
     system = get_aqualink_system(
         client, cls=IaquaSystem, data={"home_screen": [{}, {}, {}, {"temp_scale": "F"}]}
     )
-    system.online = True
+    system.online = online
     system.update = AsyncMock()
     system.devices = {}
     system.get_devices = AsyncMock(return_value={})
@@ -408,6 +408,30 @@ async def test_local_unreachable_retries(
     entry = await _setup_local(hass, fake, client)
     assert entry.state is ConfigEntryState.LOADED
     assert ir.async_get(hass).async_get_issue(DOMAIN, "aqualinkd_unreachable_SN00001")
+
+
+async def test_local_starts_without_cloud(
+    hass: HomeAssistant, fake: FakeAqualinkd, client
+) -> None:
+    """With the cloud offline, Local mode still starts and reloads once it's back."""
+    entry = await _setup_local(hass, fake, client, online=False)
+    assert entry.state is ConfigEntryState.LOADED
+    assert hass.states.get(_entity(hass, "switch", "pool_pump")).state != "unavailable"
+
+    cloud = entry.runtime_data.cloud_coordinators["SN00001"]
+    cloud.system.online = True
+    with patch.object(hass.config_entries, "async_schedule_reload") as reload:
+        await cloud.async_refresh()
+    reload.assert_called_with(entry.entry_id)
+
+
+async def test_local_and_cloud_down_retries(
+    hass: HomeAssistant, fake: FakeAqualinkd, client
+) -> None:
+    """With neither AqualinkD nor the cloud answering, setup is retried."""
+    fake.down = True
+    entry = await _setup_local(hass, fake, client, online=False)
+    assert entry.state is ConfigEntryState.SETUP_RETRY
 
 
 async def test_options_flow(hass: HomeAssistant, fake: FakeAqualinkd) -> None:
