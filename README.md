@@ -130,6 +130,7 @@ You can go back at any time by removing this integration from HACS and restartin
 | v2.3.1 | Rides out up to two failed cloud polls (e.g. a ConnectTimeout) on the last known state instead of flapping every entity, and the status sensor, to unavailable/Offline. |
 | v2.3.2 | Local mode keeps the cloud's IDs for virtual aux buttons (`Aux_V1`-`V24` to `aux_B1`-`aux_D8`) and Extra Aux (`aux_EA`), so their entities don't change when switching to Local. |
 | v2.3.4 | Local mode: Jandy ePump variable-speed pumps get an RPM setpoint, like other VS pumps. |
+| v2.3.6 | Local mode: Infinite WaterColors zones turn on with the iAquaLink app's sequence (off, 2 s, on, 1 s, colour, then brightness), the same one the cloud path uses. |
 | v2.3.5 | Local mode: thermostats show no temperature instead of AqualinkD's -999 while no water flows past the sensor (e.g. spa off). |
 | v2.3.3 | Local mode starts on AqualinkD even while the iAquaLink cloud is offline; the iCL zones are added once the cloud is back. |
 
