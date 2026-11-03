@@ -52,6 +52,10 @@ UNITS = {
     "CHEM/ORP": "mV",
 }
 VIRTUAL_AUX = re.compile(r"Aux_V(\d+)")
+# A virtual button named e.g. "Filter 3450" runs that pump at 3450 RPM.
+SPEED_LABEL = re.compile(r"(filter|pool|spa)\s+(\d{3,4})", re.IGNORECASE)
+SPEED_PUMPS = {"filter": "Filter_Pump", "pool": "Filter_Pump", "spa": "Spa"}
+SPEED_OFF_RPM = 1750
 
 # AqualinkD's Light_Type for Jandy Infinite WaterColors (virtual button, mode 7).
 INFINITE_LIGHT_TYPE = "7"
@@ -244,7 +248,16 @@ class LocalSystem(AqualinkSystem):
                         self, {**row, "cloud_name": name}
                     )
             elif kind == "switch":
-                self._add(LocalSwitch, name, row)
+                cls: type[LocalDevice] = LocalSwitch
+                speed = SPEED_LABEL.fullmatch(label.strip())
+                if speed and VIRTUAL_AUX.fullmatch(aqd_id):
+                    cls = LocalSpeedSwitch
+                    row = {
+                        **row,
+                        "pump_id": SPEED_PUMPS[speed[1].lower()],
+                        "rpm": int(speed[2]),
+                    }
+                self._add(cls, name, row)
                 self._parse_extras(aqd_id, name, label, row)
             elif kind in ("temperature", "value"):
                 self._add(LocalSensor, name, row)
@@ -441,6 +454,32 @@ class LocalSwitch(LocalDevice, AqualinkSwitch):
     async def turn_off(self) -> None:
         if self.is_on:
             await self._set(False)
+
+
+class LocalSpeedSwitch(LocalSwitch):
+    """A Filter/Pool/Spa NNNN button: on runs its pump at NNNN RPM."""
+
+    @property
+    def _pump_rpm(self) -> LocalDevice | None:
+        return self.system.devices.get(cloud_name(f"{self.data['pump_id']}/RPM"))
+
+    @property
+    @override
+    def is_on(self) -> bool:
+        sensor = self._pump_rpm
+        if self.using_fallback or sensor is None:
+            return super().is_on
+        return sensor.state == str(self.data["rpm"])
+
+    @override
+    async def _set(self, on: bool) -> None:
+        sensor = self._pump_rpm
+        if self.using_fallback or sensor is None:
+            await super()._set(on)
+            return
+        rpm = self.data["rpm"] if on else SPEED_OFF_RPM
+        await self.system.client.command(f"{self.data['pump_id']}/RPM/set", rpm)
+        sensor.data["value"] = str(rpm)
 
 
 class LocalThermostat(LocalSwitch, AqualinkThermostat):
