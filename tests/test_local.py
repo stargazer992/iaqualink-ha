@@ -280,6 +280,14 @@ async def test_local_system_parses_devices(fake: FakeAqualinkd) -> None:
     assert fake.requests == ["Aux_1/set=1", "Pool_Heater/setpoint/set=84"]
 
 
+async def test_local_epump_rpm_setpoint(fake: FakeAqualinkd) -> None:
+    """A Jandy ePump gets the same RPM setpoint as a vsPump."""
+    fake.rows["Aux_2"]["Pump_Type"] = "ePump"
+    system = LocalSystem(AqualinkdClient(URL, fake.client()), "SN1", "Pool")
+    devices = await system.get_devices()
+    assert "aux_2_rpm_set" in devices
+
+
 async def test_local_system_unreachable(fake: FakeAqualinkd) -> None:
     """An unreachable AqualinkD marks the system offline."""
     fake.down = True
