@@ -615,3 +615,14 @@ def test_ws_url() -> None:
         "ws://aqualinkd.local/"
     )
     assert AqualinkdClient("https://pi:8443/", None).ws_url == "wss://pi:8443/"
+
+
+async def test_local_thermostat_hides_no_reading(fake: FakeAqualinkd) -> None:
+    """AqualinkD's -999 (no water flow past the sensor) reads as no temperature."""
+    system = LocalSystem(AqualinkdClient(URL, fake.client()), "SN1", "Pool")
+    devices = await system.get_devices()
+    thermostats = [d for d in devices.values() if hasattr(d, "current_temperature")]
+    assert thermostats
+    for dev in thermostats:
+        dev.data["value"] = "-999"
+        assert dev.current_temperature == ""
