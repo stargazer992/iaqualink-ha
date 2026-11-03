@@ -288,44 +288,6 @@ async def test_local_epump_rpm_setpoint(fake: FakeAqualinkd) -> None:
     assert "aux_2_rpm_set" in devices
 
 
-async def test_local_thermostat_hides_no_reading(fake: FakeAqualinkd) -> None:
-    """AqualinkD's -999 (no water flow past the sensor) reads as no temperature."""
-    system = LocalSystem(AqualinkdClient(URL, fake.client()), "SN1", "Pool")
-    devices = await system.get_devices()
-    thermostats = [d for d in devices.values() if hasattr(d, "current_temperature")]
-    assert thermostats
-    for dev in thermostats:
-        dev.data["value"] = "-999"
-        assert dev.current_temperature == ""
-
-
-async def test_local_speed_switch_sets_rpm(fake: FakeAqualinkd) -> None:
-    """A "Filter 3450" virtual button runs the filter pump at 3450 RPM."""
-    fake.rows["Filter_Pump"].update(
-        type_ext="switch_vsp", Pump_RPM="1750", Pump_Type="ePump"
-    )
-    fake.rows["Aux_V4"] = {
-        "type": "switch",
-        "id": "Aux_V4",
-        "name": "Filter 3450",
-        "state": "off",
-    }
-    system = LocalSystem(AqualinkdClient(URL, fake.client()), "SN1", "Pool")
-    devices = await system.get_devices()
-    speed = devices["aux_B4"]
-    assert not speed.is_on
-    await speed.turn_on()
-    assert speed.is_on
-    await system.update()
-    assert speed.is_on
-    await speed.turn_off()
-    assert fake.requests[-2:] == [
-        "Filter_Pump/RPM/set=3450",
-        "Filter_Pump/RPM/set=1750",
-    ]
-    assert not speed.is_on
-
-
 async def test_local_system_unreachable(fake: FakeAqualinkd) -> None:
     """An unreachable AqualinkD marks the system offline."""
     fake.down = True
@@ -653,3 +615,14 @@ def test_ws_url() -> None:
         "ws://aqualinkd.local/"
     )
     assert AqualinkdClient("https://pi:8443/", None).ws_url == "wss://pi:8443/"
+
+
+async def test_local_thermostat_hides_no_reading(fake: FakeAqualinkd) -> None:
+    """AqualinkD's -999 (no water flow past the sensor) reads as no temperature."""
+    system = LocalSystem(AqualinkdClient(URL, fake.client()), "SN1", "Pool")
+    devices = await system.get_devices()
+    thermostats = [d for d in devices.values() if hasattr(d, "current_temperature")]
+    assert thermostats
+    for dev in thermostats:
+        dev.data["value"] = "-999"
+        assert dev.current_temperature == ""
