@@ -833,6 +833,41 @@ async def test_connection_switch(
         reload.assert_called_once_with(entry.entry_id)
 
 
+async def test_connection_switch_in_use(
+    hass: HomeAssistant, fake: FakeAqualinkd, client
+) -> None:
+    """in_use shows the cloud standing in while Local is picked and AqualinkD is down."""
+    from datetime import timedelta  # noqa: PLC0415
+
+    from pytest_homeassistant_custom_component.common import (  # noqa: PLC0415
+        async_fire_time_changed,
+    )
+
+    from homeassistant.util import dt as dt_util  # noqa: PLC0415
+
+    entry = await _setup_local(hass, fake, client)
+    switch = _entity(hass, "switch", "cloud_connection")
+    assert hass.states.get(switch).attributes["in_use"] == CONNECTION_LOCAL
+
+    entry.runtime_data.cloud_coordinators["SN00001"].system.online = True
+    fake.down = True
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(minutes=1))
+    await hass.async_block_till_done()
+    state = hass.states.get(switch)
+    assert state.state == "off"
+    assert state.attributes["in_use"] == CONNECTION_CLOUD
+
+    entry.runtime_data.cloud_coordinators["SN00001"].system.online = False
+    entry.runtime_data.cloud_coordinators["SN00001"].async_update_listeners()
+    await hass.async_block_till_done()
+    assert hass.states.get(switch).attributes["in_use"] is None
+
+    fake.down = False
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(minutes=2))
+    await hass.async_block_till_done()
+    assert hass.states.get(switch).attributes["in_use"] == CONNECTION_LOCAL
+
+
 async def test_connection_switch_needs_aqualinkd_url(
     hass: HomeAssistant, config_entry: MockConfigEntry, client
 ) -> None:

@@ -20,6 +20,7 @@ from .const import (
 )
 from .coordinator import AqualinkDataUpdateCoordinator
 from .entity import AqualinkEntity
+from .local import LocalSystem
 from .utils import await_or_reraise
 
 PARALLEL_UPDATES = 1
@@ -58,6 +59,7 @@ class AqualinkConnectionSwitch(SwitchEntity):
     def __init__(self, entry: AqualinkConfigEntry, serial: str) -> None:
         """Attach the switch to the system's device."""
         self._entry = entry
+        self._serial = serial
         self._attr_unique_id = f"{serial}_cloud_connection"
         self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, serial)})
 
@@ -66,6 +68,39 @@ class AqualinkConnectionSwitch(SwitchEntity):
     def is_on(self) -> bool:
         """Return whether the cloud is the connection."""
         return self._entry.options.get(CONF_CONNECTION) != CONNECTION_LOCAL
+
+    @property
+    def in_use(self) -> str | None:
+        """Return which connection is running the equipment right now."""
+        if self.is_on:
+            return CONNECTION_CLOUD
+        runtime = self._entry.runtime_data
+        system = runtime.coordinators[self._serial].system
+        if isinstance(system, LocalSystem) and system.online is not False:
+            return CONNECTION_LOCAL
+        cloud = runtime.cloud_coordinators.get(self._serial)
+        cloud_system = cloud.system if cloud else system
+        # Local is picked but AqualinkD is down: the cloud stands in.
+        return CONNECTION_CLOUD if cloud_system.online is True else None
+
+    @property
+    @override
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the connection in use, which differs while AqualinkD is down."""
+        return {"in_use": self.in_use}
+
+    @override
+    async def async_added_to_hass(self) -> None:
+        """Follow AqualinkD and the cloud going up and down."""
+        runtime = self._entry.runtime_data
+        for coordinator in (
+            runtime.coordinators.get(self._serial),
+            runtime.cloud_coordinators.get(self._serial),
+        ):
+            if coordinator is not None:
+                self.async_on_remove(
+                    coordinator.async_add_listener(self.async_write_ha_state)
+                )
 
     @property
     @override
