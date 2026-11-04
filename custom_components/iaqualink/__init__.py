@@ -366,7 +366,7 @@ async def _async_setup_system(
             local_coordinator = runtime_data.coordinators[system.serial]
             local_coordinator.cloud = coordinator
             local_coordinator.cloud_idle = cloud_up and all(
-                zone.local is not None for zone in coordinator.icl.zones.values()
+                zone.drives_local for zone in coordinator.icl.zones.values()
             )
             if local_coordinator.cloud_idle:
                 coordinator.update_interval = UPDATE_INTERVAL_CLOUD_IDLE
