@@ -10,7 +10,7 @@ from iaqualink.systems.iaqua.system import IaquaSystem
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.iaqualink import _async_aqualinkd_push
+from custom_components.iaqualink import _async_aqualinkd_push, local
 from custom_components.iaqualink.const import (
     CONF_AQUALINKD_URL,
     CONF_CONNECTION,
@@ -508,8 +508,12 @@ def _infinite_zone(fake: FakeAqualinkd) -> tuple[Any, LocalSystem, AsyncMock]:
     return zone, system, manager.send
 
 
-async def test_infinite_light_drives_zone(fake: FakeAqualinkd) -> None:
+async def test_infinite_light_drives_zone(
+    fake: FakeAqualinkd, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """A matching Infinite WaterColors button takes the zone's commands."""
+    monkeypatch.setattr(local, "INFINITE_OFF_WAIT", 0)
+    monkeypatch.setattr(local, "INFINITE_ON_WAIT", 0)
     zone, system, cloud_send = _infinite_zone(fake)
     devices = await system.get_devices()
     assert "aux_B1" not in devices
@@ -517,7 +521,8 @@ async def test_infinite_light_drives_zone(fake: FakeAqualinkd) -> None:
     zone.local = system.infinite["pool lights"]
 
     await zone.turn_on((0, 100, 255), 40)
-    assert fake.requests[-3:] == [
+    assert fake.requests[-4:] == [
+        "Aux_V1/set=0",
         "Aux_V1/set=1",
         f"Aux_V1/rgb/set={(0 << 16) | (100 << 8) | 255}",
         "Aux_V1/brightness/set=40",

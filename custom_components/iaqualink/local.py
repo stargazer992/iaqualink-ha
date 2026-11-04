@@ -6,6 +6,7 @@ names, so entities keep their unique IDs when the connection is switched.
 
 from __future__ import annotations
 
+import asyncio
 import re
 from typing import Any, override
 
@@ -55,6 +56,9 @@ VIRTUAL_AUX = re.compile(r"Aux_V(\d+)")
 
 # AqualinkD's Light_Type for Jandy Infinite WaterColors (virtual button, mode 7).
 INFINITE_LIGHT_TYPE = "7"
+# Pauses in the iAquaLink app's turn-on sequence (off, wait, on, wait, colour).
+INFINITE_OFF_WAIT = 2.0
+INFINITE_ON_WAIT = 1.0
 
 # AqualinkD's aux row fields for a variable-speed pump -> sensor suffix.
 PUMP_FIELDS = {
@@ -559,9 +563,12 @@ class LocalInfiniteLight(LocalDevice):
         return str(self.data.get("Light_Type")) == INFINITE_LIGHT_TYPE
 
     async def turn_on(self, rgb: tuple[int, int, int], percentage: int | None) -> None:
-        """Switch on, then set the colour and brightness."""
+        """Run the app's sequence: off, wait, on, wait, colour, then brightness."""
         red, green, blue = rgb
+        await self.system.client.command(f"{self.aqd_id}/set", 0)
+        await asyncio.sleep(INFINITE_OFF_WAIT)
         await self.system.client.command(f"{self.aqd_id}/set", 1)
+        await asyncio.sleep(INFINITE_ON_WAIT)
         await self.system.client.command(
             f"{self.aqd_id}/rgb/set", (red << 16) | (green << 8) | blue
         )
