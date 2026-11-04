@@ -119,9 +119,14 @@ class IclZone:
         """Return whether a recent command may not show in reports yet."""
         return time.monotonic() < self._hold_until
 
+    @property
+    def drives_local(self) -> bool:
+        """Return whether AqualinkD currently drives this zone."""
+        return self.local is not None and self.local.active
+
     def sync_local(self) -> None:
         """Take AqualinkD's on/off state; it reports reliably, unlike the cloud."""
-        if self.local is None:
+        if self.local is None or not self.local.active:
             return
         self.is_on = self.reported_on = self.local.is_on
 
@@ -184,8 +189,10 @@ class IclZone:
         if percentage is None:
             percentage = self.brightness_percentage
         self.desired_on = True
-        if self.local is not None and await self._try_local(
-            "turn on", self.local.turn_on(rgb, percentage)
+        if (
+            self.local is not None
+            and self.local.active
+            and await self._try_local("turn on", self.local.turn_on(rgb, percentage))
         ):
             self.is_on = True
             self.rgb = rgb
@@ -220,8 +227,10 @@ class IclZone:
     async def turn_off(self) -> None:
         """Turn the zone off."""
         self.desired_on = False
-        if self.local is not None and await self._try_local(
-            "turn off", self.local.turn_off()
+        if (
+            self.local is not None
+            and self.local.active
+            and await self._try_local("turn off", self.local.turn_off())
         ):
             self.is_on = False
             return
@@ -232,8 +241,12 @@ class IclZone:
 
     async def set_brightness(self, percentage: int) -> None:
         """Set the dim level without changing the colour."""
-        if self.local is not None and await self._try_local(
-            "brightness", self.local.set_brightness(percentage)
+        if (
+            self.local is not None
+            and self.local.active
+            and await self._try_local(
+                "brightness", self.local.set_brightness(percentage)
+            )
         ):
             self.brightness_percentage = percentage
             return

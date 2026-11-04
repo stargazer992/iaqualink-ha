@@ -132,6 +132,7 @@ You can go back at any time by removing this integration from HACS and restartin
 | v2.3.4 | Local mode: Jandy ePump variable-speed pumps get an RPM setpoint, like other VS pumps. |
 | v2.3.5 | Local mode: thermostats show no temperature instead of AqualinkD's -999 while no water flows past the sensor (e.g. spa off). |
 | v2.3.6 | Local mode: Status shows Offline as soon as AqualinkD drops its websocket (e.g. while it restarts), instead of up to a minute later. |
+| v2.3.7 | Local mode: iCL light zones go back to the cloud as soon as AqualinkD stops reporting an Infinite WaterColors light (e.g. stock AqualinkD after a Local test), so no colour command is sent to an AqualinkD that cannot handle it. |
 | v2.3.3 | Local mode starts on AqualinkD even while the iAquaLink cloud is offline; the iCL zones are added once the cloud is back. |
 
 **Waiting on hardware (AqualinkD Radxa kit not yet wired):** everything in Local mode has only been tested against a simulated AqualinkD. Still to do once it's connected:
