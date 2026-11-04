@@ -556,6 +556,29 @@ async def test_infinite_light_falls_back_to_cloud(fake: FakeAqualinkd) -> None:
     assert commands == ["onoff_iclzone", "onoff_iclzone", "define_iclzone_customcolor"]
 
 
+async def test_infinite_light_no_longer_infinite_uses_cloud(
+    fake: FakeAqualinkd,
+) -> None:
+    """Once AqualinkD stops reporting the Infinite light, no colour goes to it."""
+    zone, system, cloud_send = _infinite_zone(fake)
+    await system.get_devices()
+    zone.local = system.infinite["pool lights"]
+    assert zone.drives_local
+
+    fake.rows["Aux_V1"]["Light_Type"] = "0"
+    await system.update()
+    assert not zone.drives_local
+    sent = len(fake.requests)
+    with (
+        patch("custom_components.iaqualink.icl.TURN_ON_OFF_DELAY", 0),
+        patch("custom_components.iaqualink.icl.TURN_ON_ON_DELAY", 0),
+    ):
+        await zone.turn_on((255, 0, 0), None)
+    assert not any("Aux_V1" in r for r in fake.requests[sent:])
+    commands = [call.args[0] for call in cloud_send.call_args_list]
+    assert commands == ["onoff_iclzone", "onoff_iclzone", "define_iclzone_customcolor"]
+
+
 async def test_local_falls_back_to_cloud(
     hass: HomeAssistant, fake: FakeAqualinkd, client
 ) -> None:

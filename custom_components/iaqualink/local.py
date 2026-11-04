@@ -248,6 +248,10 @@ class LocalSystem(AqualinkSystem):
                         self, {**row, "cloud_name": name}
                     )
             elif kind == "switch":
+                # No longer an Infinite light (e.g. stock AqualinkD after Local mode):
+                # mark it inactive so the iCL zone goes back to the cloud.
+                if (stale := self.infinite.get(label.casefold())) is not None:
+                    stale.data.update(row)
                 self._add(LocalSwitch, name, row)
                 self._parse_extras(aqd_id, name, label, row)
             elif kind in ("temperature", "value"):
@@ -552,6 +556,11 @@ class LocalInfiniteLight(LocalDevice):
     def is_on(self) -> bool:
         """Return whether AqualinkD reports the light on."""
         return self.data.get("state") == "on"
+
+    @property
+    def active(self) -> bool:
+        """Return whether AqualinkD still drives this button as an Infinite light."""
+        return str(self.data.get("Light_Type")) == INFINITE_LIGHT_TYPE
 
     async def turn_on(self, rgb: tuple[int, int, int], percentage: int | None) -> None:
         """Run the app's sequence: off, wait, on, wait, colour, then brightness."""

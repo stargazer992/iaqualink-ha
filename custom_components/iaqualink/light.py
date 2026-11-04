@@ -189,7 +189,7 @@ class HassAqualinkIclLight(AqualinkEntity[Any], LightEntity, RestoreEntity):
     @override
     def available(self) -> bool:
         """Follow AqualinkD while it drives the zone, else the cloud."""
-        if self.dev.local is not None and self._local is not None:
+        if self.dev.drives_local and self._local is not None:
             return self._local.last_update_success
         return super().available
 
@@ -266,7 +266,7 @@ class HassAqualinkIclLight(AqualinkEntity[Any], LightEntity, RestoreEntity):
     @override
     def assumed_state(self) -> bool:
         """Return True when the controller doesn't report the zone's state."""
-        if self.dev.local is not None:
+        if self.dev.drives_local:
             return False
         return super().assumed_state or not self.dev.reports_state
 
