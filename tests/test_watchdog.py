@@ -42,6 +42,7 @@ def no_delays() -> Generator[None]:
     """Skip the controller's settle delays and the watchdog's verify delay."""
     with (
         patch.object(icl, "TURN_ON_OFF_DELAY", 0),
+        patch.object(icl, "COMMAND_GAP", 0),
         patch.object(icl, "TURN_ON_ON_DELAY", 0),
         patch.object(icl, "BRIGHTNESS_SETTLE_DELAY", 0),
         patch.object(watchdog, "VERIFY_DELAY", 0),

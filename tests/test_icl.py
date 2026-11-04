@@ -64,6 +64,7 @@ def no_delays() -> Generator[None]:
         patch.object(icl, "TURN_ON_OFF_DELAY", 0),
         patch.object(icl, "TURN_ON_ON_DELAY", 0),
         patch.object(icl, "BRIGHTNESS_SETTLE_DELAY", 0),
+        patch.object(icl, "COMMAND_GAP", 0),
     ):
         yield
 

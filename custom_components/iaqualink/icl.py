@@ -11,6 +11,15 @@ custom colour. Turning on therefore always runs that sequence, with the last
 colour when no new one is given. Brightness alone is a set_iclzone_color with
 only a dim level, which keeps the colour.
 
+When AqualinkD (stock, iAqualink off) has a plain panel button with the zone's
+name, on/off goes through that button while the colour and brightness stay the
+same: the light comes back in its last colour by itself. The cloud is only used
+to change colour or brightness, or when AqualinkD can't be reached.
+
+Cloud commands are staged so the controller isn't flooded: one zone sequence at
+a time per system, at least COMMAND_GAP between commands, and a command still
+waiting when a newer one for the same zone arrives is dropped.
+
 The cloud reports zone state late (and some zones, often the spa, only as
 "absent"), so the zone keeps the state it was last commanded to for a while
 instead of letting a stale report flip it back.
@@ -19,6 +28,7 @@ instead of letting a stale report flip it back.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 import logging
 import time
 from typing import TYPE_CHECKING, Any
@@ -26,7 +36,7 @@ from typing import TYPE_CHECKING, Any
 import httpx
 from iaqualink.exception import AqualinkServiceException
 
-from .local import AqualinkdError, LocalInfiniteLight
+from .local import AqualinkdError, LocalInfiniteLight, LocalSwitch, LocalSystem
 
 if TYPE_CHECKING:
     from iaqualink.systems.iaqua.system import IaquaSystem
@@ -64,6 +74,7 @@ TURN_ON_OFF_DELAY = 2.0
 TURN_ON_ON_DELAY = 1.0
 BRIGHTNESS_SETTLE_DELAY = 1.5
 COMMAND_HOLD = 120.0
+COMMAND_GAP = 1.0
 GET_INFO_TIMEOUT = 20.0
 GET_INFO_INTERVAL = 60.0
 
@@ -92,6 +103,9 @@ class IclZone:
         # Set in Local mode when AqualinkD has an Infinite WaterColors button
         # with this zone's name; commands then go to AqualinkD first.
         self.local: LocalInfiniteLight | None = None
+        # Set in Local mode; its plain button with this zone's name switches it.
+        self.local_system: LocalSystem | None = None
+        self._generation = 0
         self.apply_report(data)
 
     @property
@@ -124,11 +138,30 @@ class IclZone:
         """Return whether AqualinkD currently drives this zone."""
         return self.local is not None and self.local.active
 
+    @property
+    def button(self) -> LocalSwitch | None:
+        """Return AqualinkD's plain button for this zone, if it has one now."""
+        if self.local_system is None or self.drives_local:
+            return None
+        return self.local_system.light_button(self.label)
+
+    @property
+    def uses_button(self) -> bool:
+        """Return whether on/off can go through AqualinkD's panel button."""
+        button = self.button
+        return button is not None and self.local_system.online is not False  # type: ignore[union-attr]
+
+    @property
+    def local_state(self) -> bool:
+        """Return whether AqualinkD reports this zone's on/off state."""
+        return self.drives_local or self.uses_button
+
     def sync_local(self) -> None:
         """Take AqualinkD's on/off state; it reports reliably, unlike the cloud."""
-        if self.local is None or not self.local.active:
-            return
-        self.is_on = self.reported_on = self.local.is_on
+        if self.drives_local:
+            self.is_on = self.reported_on = self.local.is_on  # type: ignore[union-attr]
+        elif self.uses_button:
+            self.is_on = self.reported_on = self.button.is_on  # type: ignore[union-attr]
 
     async def _try_local(self, action: str, command: Any) -> bool:
         """Run a command on AqualinkD; False means fall back to the cloud."""
@@ -149,7 +182,7 @@ class IclZone:
             self.reported_on = status == STATUS_ON
         if self.settling:
             return
-        if status in (STATUS_ON, STATUS_OFF):
+        if status in (STATUS_ON, STATUS_OFF) and not self.local_state:
             self.is_on = status == STATUS_ON
         # While off the cloud repeats the last lit values: only use them to fill
         # gaps, so the colour/brightness kept for the next turn-on stays.
@@ -181,14 +214,31 @@ class IclZone:
         if pct is not None:
             self.brightness_percentage = pct
 
+    def _unchanged(
+        self, rgb: tuple[int, int, int] | None, percentage: int | None
+    ) -> bool:
+        """Return whether a turn-on keeps the colour and brightness."""
+        return (rgb is None or rgb == self.rgb) and (
+            percentage is None or percentage == self.brightness_percentage
+        )
+
     async def turn_on(
         self, rgb: tuple[int, int, int] | None = None, percentage: int | None = None
     ) -> None:
         """Light the zone with the app's sequence, then set the brightness."""
-        rgb = tuple(rgb) if rgb is not None else self.rgb or DEFAULT_RGB  # type: ignore[assignment]
+        requested = tuple(rgb) if rgb is not None else None
+        self.desired_on = True
+        if (
+            self.uses_button
+            and self._unchanged(requested, percentage)  # type: ignore[arg-type]
+            and await self._try_local("turn on", self.button.turn_on())  # type: ignore[union-attr]
+        ):
+            self.is_on = True
+            self._hold()
+            return
+        rgb = requested or self.rgb or DEFAULT_RGB  # type: ignore[assignment]
         if percentage is None:
             percentage = self.brightness_percentage
-        self.desired_on = True
         if (
             self.local is not None
             and self.local.active
@@ -199,6 +249,11 @@ class IclZone:
             if percentage is not None:
                 self.brightness_percentage = percentage
             return
+        await self._cloud(lambda: self._cloud_turn_on(rgb, percentage))  # type: ignore[arg-type]
+
+    async def _cloud_turn_on(
+        self, rgb: tuple[int, int, int], percentage: int | None
+    ) -> None:
         self._hold()
         try:
             await self._on_off(STATUS_OFF)
@@ -221,12 +276,19 @@ class IclZone:
         self.rgb = (red, green, blue)
         if percentage is not None:
             await asyncio.sleep(BRIGHTNESS_SETTLE_DELAY)
-            await self.set_brightness(percentage)
+            await self._cloud_brightness(percentage)
         self._hold()
 
     async def turn_off(self) -> None:
         """Turn the zone off."""
         self.desired_on = False
+        if self.uses_button and await self._try_local(
+            "turn off",
+            self.button.turn_off(),  # type: ignore[union-attr]
+        ):
+            self.is_on = False
+            self._hold()
+            return
         if (
             self.local is not None
             and self.local.active
@@ -234,6 +296,9 @@ class IclZone:
         ):
             self.is_on = False
             return
+        await self._cloud(self._cloud_turn_off)
+
+    async def _cloud_turn_off(self) -> None:
         self._hold()
         await self._on_off(STATUS_OFF)
         self.is_on = False
@@ -250,10 +315,23 @@ class IclZone:
         ):
             self.brightness_percentage = percentage
             return
+        await self._cloud(lambda: self._cloud_brightness(percentage))
+
+    async def _cloud_brightness(self, percentage: int) -> None:
         self._hold()
         await self._send(COMMAND_SET_COLOR, dim_level=percentage)
         self.brightness_percentage = percentage
         self._hold()
+
+    async def _cloud(self, command: Callable[[], Awaitable[None]]) -> None:
+        """Run a cloud sequence after any other zone's; drop it if superseded."""
+        self._generation += 1
+        generation = self._generation
+        async with self.manager.sequence_lock:
+            if generation != self._generation:
+                _LOGGER.debug("%s: dropping a superseded light command", self.label)
+                return
+            await command()
 
     async def _on_off(self, action: str) -> None:
         await self._send(COMMAND_ON_OFF, on_off_action=action)
@@ -281,6 +359,9 @@ class IclManager:
         self._last_get_info = 0.0
         # Last raw cloud screens, for diagnostics (e.g. finding the SWG value).
         self.raw: dict[str, Any] = {}
+        self.sequence_lock = asyncio.Lock()
+        self._send_lock = asyncio.Lock()
+        self._last_send = 0.0
         original_home = system._parse_home_response  # noqa: SLF001
 
         def parse_home(response: Any) -> None:
@@ -354,8 +435,14 @@ class IclManager:
                 self.zones[zone_id] = IclZone(self, data)
 
     async def send(self, command: str, params: dict[str, str]) -> dict[str, Any]:
-        """Send an iCL command and merge any zone state in the reply."""
-        response = await self.system._send_session_request(command, params)  # noqa: SLF001
+        """Send an iCL command, COMMAND_GAP after the last; merge the reply."""
+        async with self._send_lock:
+            if (wait := self._last_send + COMMAND_GAP - time.monotonic()) > 0:
+                await asyncio.sleep(wait)
+            try:
+                response = await self.system._send_session_request(command, params)  # noqa: SLF001
+            finally:
+                self._last_send = time.monotonic()
         try:
             data = response.json()
         except ValueError:

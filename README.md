@@ -133,6 +133,7 @@ You can go back at any time by removing this integration from HACS and restartin
 | v2.3.5 | Local mode: thermostats show no temperature instead of AqualinkD's -999 while no water flows past the sensor (e.g. spa off). |
 | v2.3.6 | Local mode: Status shows Offline as soon as AqualinkD drops its websocket (e.g. while it restarts), instead of up to a minute later. |
 | v2.3.7 | Local mode: iCL light zones go back to the cloud as soon as AqualinkD stops reporting an Infinite WaterColors light (e.g. stock AqualinkD after a Local test), so no colour command is sent to an AqualinkD that cannot handle it. |
+| v2.3.9 | iCL light zones switch on and off through AqualinkD's plain panel button (stock AqualinkD, Cloud mode) while the colour and brightness stay the same; the light comes back in its last colour by itself. The cloud is used only to change colour or brightness, or when AqualinkD can't be reached. Cloud light commands are staged: one zone sequence at a time, at least 1 s apart, and a command superseded while waiting is dropped. |
 | v2.3.8 | Local mode: Infinite WaterColors zones turn on with the iAquaLink app's sequence (off, 2 s, on, 1 s, colour, then brightness), the same one the cloud path uses. |
 | v2.3.3 | Local mode starts on AqualinkD even while the iAquaLink cloud is offline; the iCL zones are added once the cloud is back. |
 
