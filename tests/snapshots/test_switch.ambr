@@ -49,3 +49,54 @@
     'state': 'on',
   })
 # ---
+# name: test_setup[switch.pool_cloud_connection-entry]
+  EntityRegistryEntrySnapshot({
+    'aliases': list([
+      None,
+    ]),
+    'area_id': None,
+    'capabilities': None,
+    'config_entry_id': <ANY>,
+    'config_subentry_id': <ANY>,
+    'device_class': None,
+    'device_id': <ANY>,
+    'disabled_by': None,
+    'domain': 'switch',
+    'entity_category': None,
+    'entity_id': 'switch.pool_cloud_connection',
+    'has_entity_name': True,
+    'hidden_by': None,
+    'icon': None,
+    'id': <ANY>,
+    'labels': set({
+    }),
+    'name': None,
+    'object_id_base': 'Cloud connection',
+    'options': dict({
+    }),
+    'original_device_class': None,
+    'original_icon': 'mdi:cloud',
+    'original_name': 'Cloud connection',
+    'platform': 'iaqualink',
+    'previous_unique_id': None,
+    'suggested_object_id': None,
+    'supported_features': 0,
+    'translation_key': None,
+    'unique_id': 'SN00001_cloud_connection',
+    'unit_of_measurement': None,
+  })
+# ---
+# name: test_setup[switch.pool_cloud_connection-state]
+  StateSnapshot({
+    'attributes': ReadOnlyDict({
+      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Pool Cloud connection',
+      <EntityStateAttribute.ICON: 'icon'>: 'mdi:cloud',
+    }),
+    'context': <ANY>,
+    'entity_id': 'switch.pool_cloud_connection',
+    'last_changed': <ANY>,
+    'last_reported': <ANY>,
+    'last_updated': <ANY>,
+    'state': 'on',
+  })
+# ---

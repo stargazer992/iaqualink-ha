@@ -510,7 +510,7 @@ async def test_setup_all_good_no_recognized_devices(
     assert len(hass.states.async_entity_ids(CLIMATE_DOMAIN)) == 0
     assert len(hass.states.async_entity_ids(LIGHT_DOMAIN)) == 0
     assert len(device_entity_ids(hass, SENSOR_DOMAIN)) == 0
-    assert len(hass.states.async_entity_ids(SWITCH_DOMAIN)) == 0
+    assert len(device_entity_ids(hass, SWITCH_DOMAIN)) == 0
 
     assert await hass.config_entries.async_unload(config_entry.entry_id)
     await hass.async_block_till_done()
@@ -533,7 +533,7 @@ async def test_setup_all_good_all_device_types(
     assert len(hass.states.async_entity_ids(CLIMATE_DOMAIN)) == 1
     assert len(hass.states.async_entity_ids(LIGHT_DOMAIN)) == 1
     assert len(device_entity_ids(hass, SENSOR_DOMAIN)) == 1
-    assert len(hass.states.async_entity_ids(SWITCH_DOMAIN)) == 1
+    assert len(device_entity_ids(hass, SWITCH_DOMAIN)) == 1
 
     for domain in (
         BINARY_SENSOR_DOMAIN,
@@ -727,7 +727,7 @@ async def test_pool_light_card_served(hass: HomeAssistant) -> None:
     (config,) = hass.http.async_register_static_paths.await_args.args[0]
     assert (config.url_path, config.path) == (CARD_URL, str(CARD_PATH))
     assert CARD_PATH.is_file()
-    assert add_js.call_args.args[1] == f"{CARD_URL}?v=2.3.9"
+    assert add_js.call_args.args[1] == f"{CARD_URL}?v=2.3.10"
 
 
 async def test_pool_light_card_resource(hass: HomeAssistant) -> None:
@@ -756,7 +756,7 @@ async def test_pool_light_card_resource(hass: HomeAssistant) -> None:
 
     add_js.assert_not_called()
     resources.async_update_item.assert_awaited_once_with(
-        "b", {"res_type": "module", "url": f"{CARD_URL}?v=2.3.9"}
+        "b", {"res_type": "module", "url": f"{CARD_URL}?v=2.3.10"}
     )
     resources.async_delete_item.assert_awaited_once_with("c")
     resources.async_create_item.assert_not_called()
@@ -765,5 +765,5 @@ async def test_pool_light_card_resource(hass: HomeAssistant) -> None:
     with patch("homeassistant.components.frontend.add_extra_js_url"):
         assert await async_setup(hass, {})
     resources.async_create_item.assert_awaited_once_with(
-        {"res_type": "module", "url": f"{CARD_URL}?v=2.3.9"}
+        {"res_type": "module", "url": f"{CARD_URL}?v=2.3.10"}
     )

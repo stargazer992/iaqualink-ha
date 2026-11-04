@@ -6,9 +6,18 @@ from iaqualink.device import AqualinkSwitch
 
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import AqualinkConfigEntry, refresh_system
+from .const import (
+    CONF_AQUALINKD_URL,
+    CONF_CONNECTION,
+    CONNECTION_CLOUD,
+    CONNECTION_LOCAL,
+    DOMAIN,
+)
 from .coordinator import AqualinkDataUpdateCoordinator
 from .entity import AqualinkEntity
 from .utils import await_or_reraise
@@ -28,6 +37,64 @@ async def async_setup_entry(
         )
         for dev in config_entry.runtime_data.switches
     )
+    async_add_entities(
+        AqualinkConnectionSwitch(config_entry, serial)
+        for serial, coordinator in config_entry.runtime_data.coordinators.items()
+        if coordinator.system.NAME in ("iaqua", "aqualinkd")
+    )
+
+
+class AqualinkConnectionSwitch(SwitchEntity):
+    """On for the iAquaLink cloud, off for Local (AqualinkD).
+
+    It only changes the entry's connection option, so it works while AqualinkD
+    is unreachable.
+    """
+
+    _attr_has_entity_name = True
+    _attr_name = "Cloud connection"
+    _attr_should_poll = False
+
+    def __init__(self, entry: AqualinkConfigEntry, serial: str) -> None:
+        """Attach the switch to the system's device."""
+        self._entry = entry
+        self._attr_unique_id = f"{serial}_cloud_connection"
+        self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, serial)})
+
+    @property
+    @override
+    def is_on(self) -> bool:
+        """Return whether the cloud is the connection."""
+        return self._entry.options.get(CONF_CONNECTION) != CONNECTION_LOCAL
+
+    @property
+    @override
+    def icon(self) -> str:
+        """Return a cloud or a network icon."""
+        return "mdi:cloud" if self.is_on else "mdi:lan"
+
+    @override
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Use the iAquaLink cloud."""
+        self._set_connection(CONNECTION_CLOUD)
+
+    @override
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Use AqualinkD."""
+        if not self._entry.options.get(CONF_AQUALINKD_URL):
+            raise HomeAssistantError(
+                "Set the AqualinkD address in the iAquaLink options first"
+            )
+        self._set_connection(CONNECTION_LOCAL)
+
+    def _set_connection(self, connection: str) -> None:
+        if self._entry.options.get(CONF_CONNECTION, CONNECTION_CLOUD) == connection:
+            return
+        self.hass.config_entries.async_update_entry(
+            self._entry, options={**self._entry.options, CONF_CONNECTION: connection}
+        )
+        self.async_write_ha_state()
+        self.hass.config_entries.async_schedule_reload(self._entry.entry_id)
 
 
 class HassAqualinkSwitch(AqualinkEntity[AqualinkSwitch], SwitchEntity):

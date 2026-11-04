@@ -34,6 +34,8 @@ By default everything goes through the iAquaLink cloud. If you run [AqualinkD](h
 - **Connection:** Cloud (iAquaLink) or Local (AqualinkD).
 - **AqualinkD address:** e.g. `http://aqualinkd.local` or `http://192.168.1.50`. It is checked before saving.
 
+Each iAqua system also gets a **Cloud connection** switch (on = Cloud, off = Local) for dashboards. It changes the same option and reloads the integration without checking AqualinkD, so you can switch either way while AqualinkD is unreachable. Local needs an AqualinkD address saved in Configure first.
+
 In Local mode, pumps, aux buttons, heaters, setpoints, temperatures, freeze protection, pH/ORP and the salt cell (`swg_percent`, and salt ppm in `pool_salinity`) come from AqualinkD's HTTP API, polled every 5 seconds. Entities keep the cloud's names and unique IDs, so dashboards and automations keep working when you switch. System status and Service mode read AqualinkD's panel status.
 
 Local mode also adds what AqualinkD's own Home Assistant discovery offers:
@@ -51,7 +53,7 @@ Local mode also adds what AqualinkD's own Home Assistant discovery offers:
 **Local mode behaviour:**
 
 - **Instant updates:** the integration listens to AqualinkD's websocket and refreshes as soon as anything changes. It polls every 60 s as a safety net, or every 5 s while the websocket is down.
-- **Cloud fallback:** while AqualinkD doesn't answer, each equipment entity uses the matching cloud device, so pumps and heaters stay available and controllable. After 3 failed polls a repair issue appears; it clears when AqualinkD is back. If AqualinkD is down when HA starts, the entry starts on the cloud and reloads itself once AqualinkD answers.
+- **Cloud fallback:** while AqualinkD doesn't answer, each equipment entity uses the matching cloud device and updates on every cloud poll, so pumps and heaters stay available, current and controllable. After 3 failed polls a repair issue appears; it clears when AqualinkD is back. If AqualinkD is down when HA starts, the entry starts on the cloud and reloads itself once AqualinkD answers.
 - **Less cloud traffic:** when AqualinkD drives every light zone, the cloud is polled every 5 minutes instead of every 15 s. It goes back to 15 s during a fallback.
 - **Energy:** each variable-speed pump gets an `..._energy` kWh sensor, summed from its watts, for the Energy dashboard. Numeric readings have `state_class: measurement` for long-term statistics.
 
@@ -134,6 +136,7 @@ You can go back at any time by removing this integration from HACS and restartin
 | v2.3.6 | Local mode: Status shows Offline as soon as AqualinkD drops its websocket (e.g. while it restarts), instead of up to a minute later. |
 | v2.3.7 | Local mode: iCL light zones go back to the cloud as soon as AqualinkD stops reporting an Infinite WaterColors light (e.g. stock AqualinkD after a Local test), so no colour command is sent to an AqualinkD that cannot handle it. |
 | v2.3.9 | iCL light zones switch on and off through AqualinkD's plain panel button (stock AqualinkD, Cloud mode) while the colour and brightness stay the same; the light comes back in its last colour by itself. The cloud is used only to change colour or brightness, or when AqualinkD can't be reached. Cloud light commands are staged: one zone sequence at a time, at least 1 s apart, and a command superseded while waiting is dropped. |
+| v2.3.10 | New **Cloud connection** switch: flips the integration between Cloud and Local without needing AqualinkD to answer. During a cloud fallback, AqualinkD entities now follow every cloud poll instead of freezing at the moment AqualinkD went away. |
 | v2.3.8 | Local mode: Infinite WaterColors zones turn on with the iAquaLink app's sequence (off, 2 s, on, 1 s, colour, then brightness), the same one the cloud path uses. |
 | v2.3.3 | Local mode starts on AqualinkD even while the iAquaLink cloud is offline; the iCL zones are added once the cloud is back. |
 

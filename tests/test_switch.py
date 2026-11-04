@@ -72,7 +72,11 @@ async def _setup_switch(
 
     await setup_entry(hass, config_entry, system)
 
-    entity_ids = hass.states.async_entity_ids(SWITCH_DOMAIN)
+    entity_ids = [
+        e
+        for e in hass.states.async_entity_ids(SWITCH_DOMAIN)
+        if not e.endswith("_cloud_connection")
+    ]
     assert len(entity_ids) == 1
     entity_id = entity_ids[0]
     entity_state = hass.states.get(entity_id)
