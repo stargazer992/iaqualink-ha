@@ -424,6 +424,10 @@ async def _async_setup_local(
         # Started without the cloud: reload once it is back to add the iCL zones.
         if not cloud_up and cloud.last_update_success and system.online is True:
             hass.config_entries.async_schedule_reload(entry.entry_id)
+        # While AqualinkD is down its entities show the cloud's state. Redraw them
+        # on every cloud poll: HA skips listeners after repeated failed polls.
+        if local.online is False:
+            coordinator.async_update_listeners()
 
     # Nothing but the iCL lights listens to the cloud now; keep it polling.
     entry.async_on_unload(cloud.async_add_listener(_cloud_listener))

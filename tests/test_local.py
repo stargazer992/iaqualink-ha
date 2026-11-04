@@ -766,3 +766,86 @@ async def test_push_refreshes_when_websocket_drops(hass: HomeAssistant) -> None:
         await _async_aqualinkd_push(hass, coordinator, local)
     coordinator.async_request_refresh.assert_awaited_once()
     assert coordinator.update_interval == UPDATE_INTERVAL_BY_SYSTEM_TYPE["aqualinkd"]
+
+
+async def test_fallback_redraws_on_cloud_poll(
+    hass: HomeAssistant, fake: FakeAqualinkd, client
+) -> None:
+    """With AqualinkD down, every cloud poll redraws its entities."""
+    from datetime import timedelta  # noqa: PLC0415
+
+    from pytest_homeassistant_custom_component.common import (  # noqa: PLC0415
+        async_fire_time_changed,
+    )
+
+    from homeassistant.util import dt as dt_util  # noqa: PLC0415
+
+    entry = await _setup_local(hass, fake, client)
+    pump = _entity(hass, "switch", "pool_pump")
+    coordinator = entry.runtime_data.coordinators["SN00001"]
+    cloud = AsyncMock()
+    cloud.system.online = True
+    cloud.is_on = False
+    coordinator.system.devices["pool_pump"].fallback = cloud
+
+    fake.down = True
+    for minutes in (1, 2, 3):
+        async_fire_time_changed(hass, dt_util.utcnow() + timedelta(minutes=minutes))
+        await hass.async_block_till_done()
+    assert hass.states.get(pump).state == "off"
+
+    cloud.is_on = True
+    entry.runtime_data.cloud_coordinators["SN00001"].async_update_listeners()
+    await hass.async_block_till_done()
+    assert hass.states.get(pump).state == "on"
+
+
+async def test_connection_switch(
+    hass: HomeAssistant, fake: FakeAqualinkd, client
+) -> None:
+    """The Cloud connection switch flips the option and reloads, AqualinkD or not."""
+    entry = await _setup_local(hass, fake, client)
+    switch = _entity(hass, "switch", "cloud_connection")
+    assert hass.states.get(switch).state == "off"
+
+    fake.down = True
+    with patch.object(hass.config_entries, "async_schedule_reload") as reload:
+        await hass.services.async_call(
+            "switch", "turn_on", {"entity_id": switch}, blocking=True
+        )
+        assert entry.options == {
+            CONF_CONNECTION: CONNECTION_CLOUD,
+            CONF_AQUALINKD_URL: URL,
+        }
+        assert hass.states.get(switch).state == "on"
+        reload.assert_called_once_with(entry.entry_id)
+
+        reload.reset_mock()
+        await hass.services.async_call(
+            "switch", "turn_on", {"entity_id": switch}, blocking=True
+        )
+        reload.assert_not_called()
+
+        await hass.services.async_call(
+            "switch", "turn_off", {"entity_id": switch}, blocking=True
+        )
+        assert entry.options[CONF_CONNECTION] == CONNECTION_LOCAL
+        reload.assert_called_once_with(entry.entry_id)
+
+
+async def test_connection_switch_needs_aqualinkd_url(
+    hass: HomeAssistant, config_entry: MockConfigEntry, client
+) -> None:
+    """Local can't be picked before an AqualinkD address is set."""
+    from homeassistant.exceptions import HomeAssistantError  # noqa: PLC0415
+
+    from .conftest import setup_integration  # noqa: PLC0415
+
+    await setup_integration(hass, config_entry, client)
+    switch = _entity(hass, "switch", "cloud_connection")
+    assert hass.states.get(switch).state == "on"
+    with pytest.raises(HomeAssistantError):
+        await hass.services.async_call(
+            "switch", "turn_off", {"entity_id": switch}, blocking=True
+        )
+    assert CONF_CONNECTION not in config_entry.options
