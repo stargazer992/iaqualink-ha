@@ -34,7 +34,7 @@ By default everything goes through the iAquaLink cloud. If you run [AqualinkD](h
 - **Connection:** Cloud (iAquaLink) or Local (AqualinkD).
 - **AqualinkD address:** e.g. `http://aqualinkd.local` or `http://192.168.1.50`. It is checked before saving.
 
-Each iAqua system also gets a **Cloud connection** switch (on = Cloud, off = Local) for dashboards. It changes the same option and reloads the integration without checking AqualinkD, so you can switch either way while AqualinkD is unreachable. Local needs an AqualinkD address saved in Configure first.
+Each iAqua system also gets a **Cloud connection** switch (on = Cloud, off = Local) for dashboards. It changes the same option and reloads the integration without checking AqualinkD, so you can switch either way while AqualinkD is unreachable. Local needs an AqualinkD address saved in Configure first. Its `in_use` attribute says which connection is running the equipment right now: `local`, `cloud` (also while Local is picked but AqualinkD is down and the cloud stands in), or empty when neither answers.
 
 In Local mode, pumps, aux buttons, heaters, setpoints, temperatures, freeze protection, pH/ORP and the salt cell (`swg_percent`, and salt ppm in `pool_salinity`) come from AqualinkD's HTTP API, polled every 5 seconds. Entities keep the cloud's names and unique IDs, so dashboards and automations keep working when you switch. System status and Service mode read AqualinkD's panel status.
 
@@ -137,6 +137,7 @@ You can go back at any time by removing this integration from HACS and restartin
 | v2.3.7 | Local mode: iCL light zones go back to the cloud as soon as AqualinkD stops reporting an Infinite WaterColors light (e.g. stock AqualinkD after a Local test), so no colour command is sent to an AqualinkD that cannot handle it. |
 | v2.3.9 | iCL light zones switch on and off through AqualinkD's plain panel button (stock AqualinkD, Cloud mode) while the colour and brightness stay the same; the light comes back in its last colour by itself. The cloud is used only to change colour or brightness, or when AqualinkD can't be reached. Cloud light commands are staged: one zone sequence at a time, at least 1 s apart, and a command superseded while waiting is dropped. |
 | v2.3.10 | New **Cloud connection** switch: flips the integration between Cloud and Local without needing AqualinkD to answer. During a cloud fallback, AqualinkD entities now follow every cloud poll instead of freezing at the moment AqualinkD went away. |
+| v2.3.11 | The Cloud connection switch gets an `in_use` attribute (`local` / `cloud` / empty), so a dashboard can show that the cloud is standing in while Local is picked and AqualinkD is down. |
 | v2.3.8 | Local mode: Infinite WaterColors zones turn on with the iAquaLink app's sequence (off, 2 s, on, 1 s, colour, then brightness), the same one the cloud path uses. |
 | v2.3.3 | Local mode starts on AqualinkD even while the iAquaLink cloud is offline; the iCL zones are added once the cloud is back. |
 

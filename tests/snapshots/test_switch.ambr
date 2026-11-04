@@ -91,6 +91,7 @@
     'attributes': ReadOnlyDict({
       <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Pool Cloud connection',
       <EntityStateAttribute.ICON: 'icon'>: 'mdi:cloud',
+      'in_use': 'cloud',
     }),
     'context': <ANY>,
     'entity_id': 'switch.pool_cloud_connection',
