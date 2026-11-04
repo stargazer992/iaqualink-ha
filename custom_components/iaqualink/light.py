@@ -189,8 +189,8 @@ class HassAqualinkIclLight(AqualinkEntity[Any], LightEntity, RestoreEntity):
     @override
     def available(self) -> bool:
         """Follow AqualinkD while it drives the zone, else the cloud."""
-        if self.dev.drives_local and self._local is not None:
-            return self._local.last_update_success
+        if self.dev.local_state and self._local is not None:
+            return self._local.last_update_success or super().available
         return super().available
 
     def _handle_local_update(self) -> None:
@@ -201,7 +201,7 @@ class HassAqualinkIclLight(AqualinkEntity[Any], LightEntity, RestoreEntity):
     async def async_added_to_hass(self) -> None:
         """Restore what the controller doesn't report."""
         await super().async_added_to_hass()
-        if self.dev.local is not None and self._local is not None:
+        if self.dev.local_system is not None and self._local is not None:
             self.async_on_remove(
                 self._local.async_add_listener(self._handle_local_update)
             )
@@ -266,7 +266,7 @@ class HassAqualinkIclLight(AqualinkEntity[Any], LightEntity, RestoreEntity):
     @override
     def assumed_state(self) -> bool:
         """Return True when the controller doesn't report the zone's state."""
-        if self.dev.drives_local:
+        if self.dev.local_state:
             return False
         return super().assumed_state or not self.dev.reports_state
 

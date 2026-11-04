@@ -166,6 +166,18 @@ class LocalSystem(AqualinkSystem):
         self._parse(devices.get("devices") or [])
         self._parse_status(status)
 
+    def light_button(self, label: str) -> LocalSwitch | None:
+        """Return the plain button with this label (e.g. an iCL zone's name)."""
+        key = label.casefold()
+        return next(
+            (
+                dev
+                for dev in self.devices.values()
+                if type(dev) is LocalSwitch and dev.label.casefold() == key
+            ),
+            None,
+        )
+
     def _add(self, cls: type[LocalDevice], name: str, row: dict[str, Any]) -> None:
         if name in self.devices:
             self.devices[name].data.update(row)

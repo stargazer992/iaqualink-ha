@@ -504,6 +504,7 @@ def _infinite_zone(fake: FakeAqualinkd) -> tuple[Any, LocalSystem, AsyncMock]:
     system = LocalSystem(AqualinkdClient(URL, fake.client()), "SN1", "Pool")
     manager = AsyncMock()
     manager.system = system
+    manager.sequence_lock = asyncio.Lock()
     zone = IclZone(manager, {"zoneId": "1", "zoneName": "Pool Lights"})
     return zone, system, manager.send
 
@@ -577,6 +578,89 @@ async def test_infinite_light_no_longer_infinite_uses_cloud(
     assert not any("Aux_V1" in r for r in fake.requests[sent:])
     commands = [call.args[0] for call in cloud_send.call_args_list]
     assert commands == ["onoff_iclzone", "onoff_iclzone", "define_iclzone_customcolor"]
+
+
+def _button_zone(fake: FakeAqualinkd) -> tuple[Any, LocalSystem, AsyncMock]:
+    """A zone whose light is a plain AqualinkD button (stock, iAqualink off)."""
+    zone, system, cloud_send = _infinite_zone(fake)
+    fake.rows["Aux_V1"]["Light_Type"] = "0"
+    zone.local_system = system
+    zone.rgb = (10, 20, 30)
+    zone.brightness_percentage = 60
+    return zone, system, cloud_send
+
+
+async def test_icl_plain_button_switches_zone(fake: FakeAqualinkd) -> None:
+    """With the colour unchanged, on/off goes through AqualinkD's button."""
+    zone, system, cloud_send = _button_zone(fake)
+    await system.get_devices()
+    assert zone.uses_button
+    assert not zone.drives_local
+
+    await zone.turn_on((10, 20, 30), 60)
+    await system.update()
+    zone.sync_local()
+    assert fake.requests[-1] == "Aux_V1/set=1"
+    assert zone.is_on is True
+    fake.rows["Aux_V1"]["state"] = "on"
+    await system.update()
+    await zone.turn_off()
+    assert fake.requests[-1] == "Aux_V1/set=0"
+    assert zone.is_on is False
+    cloud_send.assert_not_called()
+
+    zone.apply_report({"zoneStatus": "on"})
+    zone._hold_until = 0
+    zone.apply_report({"zoneStatus": "on"})
+    assert zone.is_on is False
+
+
+async def test_icl_plain_button_colour_change_uses_cloud(
+    fake: FakeAqualinkd,
+) -> None:
+    """A new colour still needs the cloud; AqualinkD can't set it."""
+    zone, system, cloud_send = _button_zone(fake)
+    await system.get_devices()
+    sent = len(fake.requests)
+    with (
+        patch("custom_components.iaqualink.icl.TURN_ON_OFF_DELAY", 0),
+        patch("custom_components.iaqualink.icl.TURN_ON_ON_DELAY", 0),
+        patch("custom_components.iaqualink.icl.BRIGHTNESS_SETTLE_DELAY", 0),
+    ):
+        await zone.turn_on((255, 0, 0), None)
+    assert not any("Aux_V1" in r for r in fake.requests[sent:])
+    commands = [call.args[0] for call in cloud_send.call_args_list]
+    assert commands == [
+        "onoff_iclzone",
+        "onoff_iclzone",
+        "define_iclzone_customcolor",
+        "set_iclzone_color",
+    ]
+
+
+async def test_icl_plain_button_down_uses_cloud(fake: FakeAqualinkd) -> None:
+    """If AqualinkD's button fails, on/off goes to the cloud."""
+    zone, system, cloud_send = _button_zone(fake)
+    fake.rows["Aux_V1"]["state"] = "on"
+    await system.get_devices()
+    fake.down = True
+    await zone.turn_off()
+    assert [call.args[0] for call in cloud_send.call_args_list] == ["onoff_iclzone"]
+
+
+async def test_icl_superseded_command_dropped(fake: FakeAqualinkd) -> None:
+    """A command still waiting when a newer one arrives is not sent."""
+    zone, _system, cloud_send = _infinite_zone(fake)
+    lock = zone.manager.sequence_lock
+    await lock.acquire()
+    first = asyncio.ensure_future(zone.set_brightness(30))
+    second = asyncio.ensure_future(zone.set_brightness(80))
+    await asyncio.sleep(0)
+    lock.release()
+    await asyncio.gather(first, second)
+    assert [call.args[1] for call in cloud_send.call_args_list] == [
+        {"zone_id": "1", "dim_level": "80"}
+    ]
 
 
 async def test_local_falls_back_to_cloud(

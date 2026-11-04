@@ -362,6 +362,7 @@ async def _async_setup_system(
         if isinstance(local, LocalSystem):
             for zone in coordinator.icl.zones.values():
                 zone.local = local.infinite.get(zone.label.casefold())
+                zone.local_system = local
                 zone.sync_local()
             local_coordinator = runtime_data.coordinators[system.serial]
             local_coordinator.cloud = coordinator
