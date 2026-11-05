@@ -37,7 +37,7 @@ from .const import (
 )
 from .local import AqualinkdClient, AqualinkdError
 
-DEFAULT_AQUALINKD_URL = "http://aqualinkd.local"
+DEFAULT_AQUALINKD_URL = "http://aqualinkd.local:8080"
 
 CREDENTIALS_DATA_SCHEMA = vol.Schema(
     {
@@ -149,12 +149,12 @@ class AqualinkFlowHandler(ConfigFlow, domain=DOMAIN):
 
 
 class AqualinkOptionsFlow(OptionsFlowWithReload):
-    """Choose whether equipment is controlled via the cloud or AqualinkD."""
+    """Choose whether equipment is controlled via the cloud or Jandy Bridge."""
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Pick the connection and, for Local, where AqualinkD runs."""
+        """Pick the connection and, for Local, where Jandy Bridge runs."""
         errors: dict[str, str] = {}
         if user_input is not None:
             url = str(user_input.get(CONF_AQUALINKD_URL) or "").strip().rstrip("/")

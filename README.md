@@ -27,11 +27,11 @@ A custom version of Home Assistant's built-in [iAquaLink integration](https://ww
 
 Each iAqua system gets a **System status** sensor (`Online`, `Offline` or `Service`, as the iAquaLink app's home screen reports it; also `Offline` when the cloud can't be reached) and a **Service mode** binary sensor. Both stay available while the system is down, so dashboards can show the outage.
 
-## Cloud or Local (AqualinkD)
+## Cloud or Local (Jandy Bridge)
 
 By default everything goes through the iAquaLink cloud. If you run [AqualinkD](https://github.com/aqualinkd/AqualinkD) on a Raspberry Pi wired to the panel's RS-485 bus, you can switch to **Local** in **Settings > Devices & services > iAquaLink > Configure**:
 
-- **Connection:** Cloud (iAquaLink) or Local (AqualinkD).
+- **Connection:** Cloud (iAquaLink) or Local (Jandy Bridge, which drives the panel bus directly; AqualinkD has the same API and also works). If the bridge stops answering, equipment uses the cloud until it is back.
 - **AqualinkD address:** e.g. `http://aqualinkd.local` or `http://192.168.1.50`. It is checked before saving.
 
 Each iAqua system also gets a **Cloud connection** switch (on = Cloud, off = Local) for dashboards. It changes the same option and reloads the integration without checking AqualinkD, so you can switch either way while AqualinkD is unreachable. Local needs an AqualinkD address saved in Configure first. Its `in_use` attribute says which connection is running the equipment right now: `local`, `cloud` (also while Local is picked but AqualinkD is down and the cloud stands in), or empty when neither answers.
@@ -140,6 +140,7 @@ You can go back at any time by removing this integration from HACS and restartin
 | v2.3.11 | The Cloud connection switch gets an `in_use` attribute (`local` / `cloud` / empty), so a dashboard can show that the cloud is standing in while Local is picked and AqualinkD is down. |
 | v2.3.8 | Local mode: Infinite WaterColors zones turn on with the iAquaLink app's sequence (off, 2 s, on, 1 s, colour, then brightness), the same one the cloud path uses. |
 | v2.3.3 | Local mode starts on AqualinkD even while the iAquaLink cloud is offline; the iCL zones are added once the cloud is back. |
+| v2.4.0 | Local means Jandy Bridge (`http://<host>:8080`); labels, repair and default address updated. |
 
 **Waiting on hardware (AqualinkD Radxa kit not yet wired):** everything in Local mode has only been tested against a simulated AqualinkD. Still to do once it's connected:
 
