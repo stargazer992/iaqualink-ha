@@ -26,6 +26,14 @@ def _ids(hass: HomeAssistant) -> tuple[str, str]:
     return status, service
 
 
+def _cloud_status(hass: HomeAssistant) -> str:
+    entity_id = er.async_get(hass).async_get_entity_id(
+        "sensor", "iaqualink", f"{SERIAL}_cloud_status"
+    )
+    assert entity_id
+    return entity_id
+
+
 def _home(status: str) -> dict:
     return {"home_screen": [{"status": status}, {"response": ""}, {"system_type": ""}]}
 
@@ -37,13 +45,16 @@ async def test_status_online_service_offline(
     system, _ = await _setup_icl(hass, config_entry, client)
     coordinator = config_entry.runtime_data.coordinators[SERIAL]
     status, service = _ids(hass)
+    cloud_status = _cloud_status(hass)
     assert hass.states.get(status).state == "Online"
+    assert hass.states.get(cloud_status).state == "Online"
     assert hass.states.get(service).state == STATE_OFF
 
     system._parse_home_response(_response(_home("Service")))
     coordinator.async_update_listeners()
     await hass.async_block_till_done()
     assert hass.states.get(status).state == "Service"
+    assert hass.states.get(cloud_status).state == "Service"
     assert hass.states.get(service).state == STATE_ON
 
     system._parse_home_response(_response(_home("Online")))
@@ -53,4 +64,5 @@ async def test_status_online_service_offline(
     for _ in range(CLOUD_GRACE_FAILURES - 1):
         await coordinator.async_refresh()
     assert hass.states.get(status).state == "Offline"
+    assert hass.states.get(cloud_status).state == "Offline"
     assert hass.states.get(service).state == STATE_OFF

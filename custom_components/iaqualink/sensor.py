@@ -50,6 +50,13 @@ async def async_setup_entry(
         for coordinator in config_entry.runtime_data.coordinators.values()
         if coordinator.icl is not None or coordinator.system.NAME == "aqualinkd"
     )
+    runtime_data = config_entry.runtime_data
+    for serial, coordinator in runtime_data.coordinators.items():
+        cloud = runtime_data.cloud_coordinators.get(serial)
+        if cloud is None and coordinator.icl is not None:
+            cloud = coordinator
+        if cloud is not None:
+            entities.append(HassAqualinkCloudStatusSensor(cloud))
     async_add_entities(entities)
 
 
@@ -69,6 +76,25 @@ class HassAqualinkSystemStatusSensor(AqualinkSystemEntity, SensorEntity):
     @override
     def native_value(self) -> str:
         """Return the system status."""
+        return system_status(self.coordinator)
+
+
+class HassAqualinkCloudStatusSensor(AqualinkSystemEntity, SensorEntity):
+    """The system's status on the iAquaLink cloud, also while Local is in use."""
+
+    _attr_name = "iAquaLink status"
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = STATUS_OPTIONS
+    _attr_icon = "mdi:cloud"
+
+    def __init__(self, coordinator: AqualinkDataUpdateCoordinator) -> None:
+        """Initialize the cloud status sensor."""
+        super().__init__(coordinator, "cloud_status")
+
+    @property
+    @override
+    def native_value(self) -> str:
+        """Return the system status the cloud reports."""
         return system_status(self.coordinator)
 
 

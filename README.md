@@ -141,6 +141,7 @@ You can go back at any time by removing this integration from HACS and restartin
 | v2.3.8 | Local mode: Infinite WaterColors zones turn on with the iAquaLink app's sequence (off, 2 s, on, 1 s, colour, then brightness), the same one the cloud path uses. |
 | v2.3.3 | Local mode starts on AqualinkD even while the iAquaLink cloud is offline; the iCL zones are added once the cloud is back. |
 | v2.4.1 | Cloud: the spa pump switch, each pump's speed and RPM, and the RPM setpoint (preset speeds only) come from the speed presets, plus the salt cell output; they also stand in while Jandy Bridge is offline. |
+| v2.4.2 | iAquaLink status sensor: the system's status on the iAquaLink cloud (Online / Offline / Service), also while Local is in use. |
 | v2.4.0 | Local means Jandy Bridge (`http://<host>:8080`); labels, repair and default address updated. |
 
 **Waiting on hardware (AqualinkD Radxa kit not yet wired):** everything in Local mode has only been tested against a simulated AqualinkD. Still to do once it's connected:
