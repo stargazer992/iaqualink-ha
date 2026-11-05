@@ -169,6 +169,12 @@ class FakeAqualinkd:
                     "status": self.status,
                     "panel_message": "AquaPure 80%",
                     "bridge_pending": "Spa 1750 on",
+                    "bridge_pump1_name": "Filtration",
+                    "bridge_pump1_speed": "Filter 2250",
+                    "bridge_pump1_run247": 2250,
+                    "bridge_pump2_name": "SPA Pump",
+                    "bridge_pump2_speed": "SPA 1650",
+                    "bridge_pump2_run247": 0,
                     "battery": "low",
                     "swg_fullstatus": "0",
                 },
@@ -272,6 +278,12 @@ async def test_local_system_parses_devices(fake: FakeAqualinkd) -> None:
         "aux_4_brightness",
         "display_message",
         "bridge_activity",
+        "bridge_pump1_speed",
+        "bridge_pump2_speed",
+        "bridge_pump1_run247",
+        "bridge_pump2_run247",
+        "bridge_pump1_run247_rpm",
+        "bridge_pump2_run247_rpm",
         "swg_status",
         "battery_low",
         "panel_clock",
@@ -347,6 +359,19 @@ async def test_local_parity_entities(
     assert hass.states.get(message).state == "AquaPure 80%"
     activity = hass.states.get(_entity(hass, "sensor", "bridge_activity"))
     assert activity.state == "Switching to new setting: Spa 1750 on"
+    spa_speed = hass.states.get(_entity(hass, "sensor", "bridge_pump2_speed"))
+    assert spa_speed.state == "SPA 1650"
+    run247 = hass.states.get(_entity(hass, "sensor", "bridge_pump1_run247_rpm"))
+    assert run247.state == "2250"
+    assert run247.attributes["unit_of_measurement"] == "rpm"
+    assert (
+        hass.states.get(_entity(hass, "binary_sensor", "bridge_pump1_run247")).state
+        == "on"
+    )
+    assert (
+        hass.states.get(_entity(hass, "binary_sensor", "bridge_pump2_run247")).state
+        == "off"
+    )
     assert hass.states.get(_entity(hass, "binary_sensor", "battery_low")).state == "on"
     waterfall = hass.states.get(_entity(hass, "switch", "aux_5"))
     assert waterfall.attributes["timer_active"] is True

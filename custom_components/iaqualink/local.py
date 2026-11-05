@@ -340,11 +340,39 @@ class LocalSystem(AqualinkSystem):
                 "Bridge activity",
                 f"Switching to new setting: {pending}" if pending else "Ready",
             )
+        pumps = [k for k in (1, 2) if f"bridge_pump{k}_speed" in status]
+        for k in pumps:
+            label = status.get(f"bridge_pump{k}_name") or f"Pump {k}"
+            texts[f"bridge_pump{k}_speed"] = (
+                f"{label} speed",
+                status[f"bridge_pump{k}_speed"],
+            )
         for name, (label, value) in texts.items():
             if value is not None:
                 self._add(
                     LocalSensor, name, {"id": name, "name": label, "value": value}
                 )
+        for k in pumps:
+            label = status.get(f"bridge_pump{k}_name") or f"Pump {k}"
+            rpm = int(status.get(f"bridge_pump{k}_run247") or 0)
+            self._add(
+                LocalBinarySensor,
+                f"bridge_pump{k}_run247",
+                {
+                    "id": f"Pump_{k}/Run247",
+                    "name": f"{label} 24/7",
+                    "state": "on" if rpm else "off",
+                },
+            )
+            self._add(
+                LocalSensor,
+                f"bridge_pump{k}_run247_rpm",
+                {
+                    "id": f"Pump_{k}/Run247/RPM",
+                    "name": f"{label} 24/7 RPM",
+                    "value": rpm or "",
+                },
+            )
         if status.get("battery") in ("ok", "low"):
             self._add(
                 LocalBinarySensor,
