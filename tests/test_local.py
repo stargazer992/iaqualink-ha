@@ -168,6 +168,7 @@ class FakeAqualinkd:
                     "type": "status",
                     "status": self.status,
                     "panel_message": "AquaPure 80%",
+                    "bridge_pending": "Spa 1750 on",
                     "battery": "low",
                     "swg_fullstatus": "0",
                 },
@@ -270,6 +271,7 @@ async def test_local_system_parses_devices(fake: FakeAqualinkd) -> None:
         "aux_3_program",
         "aux_4_brightness",
         "display_message",
+        "bridge_activity",
         "swg_status",
         "battery_low",
         "panel_clock",
@@ -343,6 +345,8 @@ async def test_local_parity_entities(
     assert hass.states.get(_entity(hass, "sensor", "aux_2_watts")).state == "640"
     message = _entity(hass, "sensor", "display_message")
     assert hass.states.get(message).state == "AquaPure 80%"
+    activity = hass.states.get(_entity(hass, "sensor", "bridge_activity"))
+    assert activity.state == "Switching to new setting: Spa 1750 on"
     assert hass.states.get(_entity(hass, "binary_sensor", "battery_low")).state == "on"
     waterfall = hass.states.get(_entity(hass, "switch", "aux_5"))
     assert waterfall.attributes["timer_active"] is True

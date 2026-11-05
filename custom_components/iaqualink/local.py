@@ -334,6 +334,12 @@ class LocalSystem(AqualinkSystem):
             "swg_status": ("SWG status", status.get("swg_fullstatus")),
             "swg_boost_message": ("SWG boost", status.get("swg_boost_msg")),
         }
+        if "bridge_pending" in status:
+            pending = status.get("bridge_pending") or ""
+            texts["bridge_activity"] = (
+                "Bridge activity",
+                f"Switching to new setting: {pending}" if pending else "Ready",
+            )
         for name, (label, value) in texts.items():
             if value is not None:
                 self._add(
