@@ -48,6 +48,7 @@ from homeassistant.helpers.typing import ConfigType
 from homeassistant.loader import async_get_integration
 from homeassistant.util.ssl import SSL_ALPN_HTTP11_HTTP2
 
+from .cloud import CloudPumpRpmSetpoint, cloud_extras
 from .const import (
     AQUALINKD_RETRY_SECONDS,
     CONF_AQUALINKD_URL,
@@ -336,9 +337,11 @@ async def _async_setup_system(
         devices = await _async_setup_local(
             hass, entry, runtime_data, coordinator, cloud_up
         )
+    elif system.NAME == "iaqua":
+        devices.update(_cloud_extras(coordinator))
 
     for dev in devices.values():
-        if isinstance(dev, LocalNumber):
+        if isinstance(dev, LocalNumber | CloudPumpRpmSetpoint):
             runtime_data.numbers += [dev]
         elif isinstance(dev, LocalSelect):
             runtime_data.selects += [dev]
@@ -373,6 +376,13 @@ async def _async_setup_system(
                 coordinator.update_interval = UPDATE_INTERVAL_CLOUD_IDLE
         if coordinator.icl.zones:
             coordinator.watchdog = IclWatchdog(hass, coordinator, coordinator.icl)
+
+
+def _cloud_extras(cloud: AqualinkDataUpdateCoordinator) -> dict[str, Any]:
+    """Return the pump and salt readings worked out from the cloud's screens."""
+    if not isinstance(getattr(cloud.system, "devices", None), dict):
+        return {}
+    return cloud_extras(cloud.system, cloud.icl.raw if cloud.icl else None)
 
 
 async def _async_setup_local(
@@ -414,7 +424,7 @@ async def _async_setup_local(
         entry.async_create_background_task(
             hass, _async_wait_for_aqualinkd(hass, entry, local), "aqualinkd_retry"
         )
-        return await system.get_devices()
+        return {**await system.get_devices(), **_cloud_extras(cloud)}
     ir.async_delete_issue(hass, DOMAIN, coordinator.local_issue_id)
     runtime_data.coordinators[system.serial] = coordinator
     runtime_data.cloud_coordinators[system.serial] = cloud
@@ -432,7 +442,10 @@ async def _async_setup_local(
     # Nothing but the iCL lights listens to the cloud now; keep it polling.
     entry.async_on_unload(cloud.async_add_listener(_cloud_listener))
     devices = await local.get_devices()
-    cloud_devices = getattr(system, "devices", None) or {}
+    cloud_devices = {
+        **(getattr(system, "devices", None) or {}),
+        **_cloud_extras(cloud),
+    }
     for dev in devices.values():
         dev.fallback = cloud_devices.get(dev.name)
     entry.async_create_background_task(

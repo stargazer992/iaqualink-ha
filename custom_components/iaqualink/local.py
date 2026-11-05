@@ -552,11 +552,15 @@ class LocalNumber(LocalDevice):
     @property
     @override
     def state(self) -> str:
+        if self.using_fallback:
+            return str(self.fallback.state)
         return str(self.data.get("value", ""))
 
     @property
     def value(self) -> float | None:
         """Return the current value."""
+        if self.using_fallback:
+            return self.fallback.value
         try:
             return float(self.data["value"])
         except KeyError, TypeError, ValueError:
@@ -564,6 +568,9 @@ class LocalNumber(LocalDevice):
 
     async def set_value(self, value: float) -> None:
         """Send the new value."""
+        if self.using_fallback:
+            await self.fallback.set_value(value)
+            return
         await self.system.client.command(self.aqd_id, int(value))
         self.data["value"] = str(int(value))
 
