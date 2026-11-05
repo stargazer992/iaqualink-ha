@@ -244,7 +244,12 @@ def config_entry_fixture():
     )
 
 
-SYSTEM_ENTITY_SUFFIXES = ("_system_status", "_service_mode", "_cloud_connection")
+SYSTEM_ENTITY_SUFFIXES = (
+    "_system_status",
+    "_service_mode",
+    "_cloud_connection",
+    "_iaqualink_status",
+)
 
 
 def device_entity_ids(hass: HomeAssistant, domain: str) -> list[str]:

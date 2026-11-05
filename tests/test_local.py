@@ -326,6 +326,8 @@ async def test_local_entities(hass: HomeAssistant, fake: FakeAqualinkd, client) 
     assert hass.states.get(_entity(hass, "sensor", "swg_percent")).state == "80"
     status = _entity(hass, "sensor", "system_status")
     assert hass.states.get(status).state == "Online"
+    cloud_status = _entity(hass, "sensor", "cloud_status")
+    assert hass.states.get(cloud_status).state == "Online"
 
     cleaner = _entity(hass, "switch", "aux_1")
     await hass.services.async_call(
