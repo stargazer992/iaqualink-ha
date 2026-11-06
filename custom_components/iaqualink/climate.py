@@ -90,6 +90,15 @@ class HassAqualinkThermostat(AqualinkEntity[AqualinkThermostat], ClimateEntity):
     @override
     def hvac_action(self) -> HVACAction | None:
         """Return the current HVAC action."""
+        if self.dev.system.NAME == "aqualinkd" and not getattr(
+            self.dev, "using_fallback", False
+        ):
+            # AqualinkD and Jandy Bridge report int_status 3 while enabled but not firing.
+            if not self.dev.is_on:
+                return HVACAction.OFF
+            if str(self.dev.data.get("int_status", "")) == "3":
+                return HVACAction.IDLE
+            return HVACAction.HEATING
         if self.dev.system.NAME != "iaqua":
             # Other systems don't report whether the heater is firing.
             return HVACAction.HEATING if self.dev.is_on else HVACAction.OFF
