@@ -11,6 +11,7 @@ import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.iaqualink import _async_aqualinkd_push, local
+from custom_components.iaqualink.climate import HassAqualinkThermostat
 from custom_components.iaqualink.const import (
     CONF_AQUALINKD_URL,
     CONF_CONNECTION,
@@ -25,6 +26,7 @@ from custom_components.iaqualink.local import (
     LocalSystem,
     cloud_name,
 )
+from homeassistant.components.climate import HVACAction
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
@@ -773,6 +775,22 @@ async def test_local_thermostat_hides_no_reading(fake: FakeAqualinkd) -> None:
     for dev in thermostats:
         dev.data["value"] = "-999"
         assert dev.current_temperature == ""
+
+
+async def test_local_thermostat_idle_while_enabled(fake: FakeAqualinkd) -> None:
+    """int_status 3 (enabled, not firing) shows idle; 1 heating; off off."""
+    system = LocalSystem(AqualinkdClient(URL, fake.client()), "SN1", "Pool")
+    devices = await system.get_devices()
+    dev = next(d for d in devices.values() if hasattr(d, "current_temperature"))
+    entity = HassAqualinkThermostat.__new__(HassAqualinkThermostat)
+    entity.dev = dev
+    for state, status, action in (
+        ("on", "1", HVACAction.HEATING),
+        ("on", "3", HVACAction.IDLE),
+        ("off", "0", HVACAction.OFF),
+    ):
+        dev.data.update(state=state, status=state, int_status=status)
+        assert entity.hvac_action == action, (state, status)
 
 
 async def test_push_refreshes_when_websocket_drops(hass: HomeAssistant) -> None:
