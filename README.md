@@ -55,6 +55,7 @@ Local mode also adds what AqualinkD's own Home Assistant discovery offers:
 - **Instant updates:** the integration listens to AqualinkD's websocket and refreshes as soon as anything changes. It polls every 60 s as a safety net, or every 5 s while the websocket is down.
 - **Cloud fallback:** while AqualinkD doesn't answer, each equipment entity uses the matching cloud device and updates on every cloud poll, so pumps and heaters stay available, current and controllable. After 3 failed polls a repair issue appears; it clears when AqualinkD is back. If AqualinkD is down when HA starts, the entry starts on the cloud and reloads itself once AqualinkD answers.
 - **Less cloud traffic:** when AqualinkD drives every light zone, the cloud is polled every 5 minutes instead of every 15 s. It goes back to 15 s during a fallback.
+- **Cloud mismatch:** a `Cloud mismatch` problem binary sensor compares Jandy Bridge with the cloud on every update of either: each button's on/off (pumps, speed buttons, aux, heaters), the heater setpoints and the pump RPMs (±50). A difference has to last 15 minutes (a few cloud polls) before it turns on, so cloud lag and settling commands don't count. Its `mismatches` attribute lists them, e.g. `Spa 2250: Jandy Bridge on, cloud off`. Temperatures and salt are left out.
 - **Energy:** each variable-speed pump gets an `..._energy` kWh sensor, summed from its watts, for the Energy dashboard. Numeric readings have `state_class: measurement` for long-term statistics.
 
 Turn off AqualinkD's own MQTT discovery for Home Assistant, otherwise HA gets a second set of entities for the same equipment.
@@ -142,6 +143,7 @@ You can go back at any time by removing this integration from HACS and restartin
 | v2.3.3 | Local mode starts on AqualinkD even while the iAquaLink cloud is offline; the iCL zones are added once the cloud is back. |
 | v2.4.1 | Cloud: the spa pump switch, each pump's speed and RPM, and the RPM setpoint (preset speeds only) come from the speed presets, plus the salt cell output; they also stand in while Jandy Bridge is offline. |
 | v2.4.3 | Local (AqualinkD / Jandy Bridge): a heater that is enabled but not firing shows Idle instead of Heating. |
+| v2.5.0 | `Cloud mismatch` binary sensor in Local mode: on when Jandy Bridge and the cloud disagree on a button, setpoint or pump RPM for 15 minutes. |
 | v2.4.2 | iAquaLink status sensor: the system's status on the iAquaLink cloud (Online / Offline / Service), also while Local is in use. |
 | v2.4.0 | Local means Jandy Bridge (`http://<host>:8080`); labels, repair and default address updated. |
 

@@ -933,3 +933,45 @@ async def test_connection_switch_needs_aqualinkd_url(
             "switch", "turn_off", {"entity_id": switch}, blocking=True
         )
     assert CONF_CONNECTION not in config_entry.options
+
+
+async def test_cloud_mismatch(
+    hass: HomeAssistant, fake: FakeAqualinkd, client, freezer
+) -> None:
+    """A difference with the cloud only counts once it has lasted 15 min."""
+    from datetime import timedelta  # noqa: PLC0415
+
+    entry = await _setup_local(hass, fake, client)
+    sensor = _entity(hass, "binary_sensor", "cloud_mismatch")
+    assert hass.states.get(sensor).state == "off"
+    coordinator = entry.runtime_data.coordinators["SN00001"]
+    cloud_coordinator = entry.runtime_data.cloud_coordinators["SN00001"]
+    cloud = MagicMock()
+    cloud.system.online = True
+    cloud.state = "0"
+    cloud.is_on = False
+    coordinator.system.devices["pool_pump"].fallback = cloud
+    setpoint = MagicMock()
+    setpoint.system.online = True
+    setpoint.state = "85"
+    coordinator.system.devices["pool_set_point"].fallback = setpoint
+
+    cloud_coordinator.async_update_listeners()
+    await hass.async_block_till_done()
+    assert hass.states.get(sensor).state == "off"
+
+    freezer.tick(timedelta(minutes=16))
+    cloud_coordinator.async_update_listeners()
+    await hass.async_block_till_done()
+    state = hass.states.get(sensor)
+    assert state.state == "on"
+    assert state.attributes["mismatches"] == [
+        "Filter Pump: Jandy Bridge on, cloud off",
+        "Pool Heater setpoint: Jandy Bridge 80, cloud 85",
+    ]
+
+    cloud.state, cloud.is_on = "1", True
+    setpoint.state = ""
+    coordinator.async_update_listeners()
+    await hass.async_block_till_done()
+    assert hass.states.get(sensor).state == "off"
