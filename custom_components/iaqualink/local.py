@@ -70,6 +70,11 @@ PUMP_FIELDS = {
 }
 
 
+def same_light(a: str, b: str) -> bool:
+    """Match light labels by name, ignoring case and a plural "s" (Jandy Bridge: "Pool light")."""
+    return a.casefold().removesuffix("s") == b.casefold().removesuffix("s")
+
+
 def cloud_name(aqd_id: str) -> str:
     """Return the cloud's name for an AqualinkD device id."""
     if aqd_id in CLOUD_NAMES:
@@ -166,14 +171,21 @@ class LocalSystem(AqualinkSystem):
         self._parse(devices.get("devices") or [])
         self._parse_status(status)
 
+    def infinite_light(self, label: str) -> LocalInfiniteLight | None:
+        """Return the Infinite light for an iCL zone ("Pool Lights" finds "Pool light")."""
+        if (dev := self.infinite.get(label.casefold())) is not None:
+            return dev
+        return next(
+            (dev for key, dev in self.infinite.items() if same_light(key, label)), None
+        )
+
     def light_button(self, label: str) -> LocalSwitch | None:
         """Return the plain button with this label (e.g. an iCL zone's name)."""
-        key = label.casefold()
         return next(
             (
                 dev
                 for dev in self.devices.values()
-                if type(dev) is LocalSwitch and dev.label.casefold() == key
+                if type(dev) is LocalSwitch and same_light(dev.label, label)
             ),
             None,
         )

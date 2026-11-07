@@ -975,3 +975,25 @@ async def test_cloud_mismatch(
     coordinator.async_update_listeners()
     await hass.async_block_till_done()
     assert hass.states.get(sensor).state == "off"
+
+
+async def test_bridge_light_label_matches_cloud_zone(fake: FakeAqualinkd) -> None:
+    """Jandy Bridge names its lights "Pool light"; the iCL zone is "Pool Lights"."""
+    fake.rows["Pool_Light"] = {
+        "type": "switch",
+        "id": "Pool_Light",
+        "name": "Pool light",
+        "state": "off",
+        "type_ext": "switch_program",
+        "Light_Type": "7",
+        "Light_Program": "0",
+        "Program_Name": "Off",
+        "light_programs": ["Off", "Alpine White"],
+    }
+    system = LocalSystem(AqualinkdClient(URL, fake.client()), "SN1", "Pool")
+    await system.get_devices()
+    light = system.infinite_light("Pool Lights")
+    assert light is not None and light.aqd_id == "Pool_Light"
+    assert system.infinite_light("Spa Lights") is None
+    assert local.same_light("Spa light", "Spa Lights")
+    assert not local.same_light("Pool light", "Spa Lights")
