@@ -390,7 +390,11 @@ class LocalSystem(AqualinkSystem):
             self._add(
                 LocalSensor,
                 "bridge_iaqualink_path",
-                {"id": "iAquaLink/Path", "name": "iAquaLink path", "value": path.capitalize()},
+                {
+                    "id": "iAquaLink/Path",
+                    "name": "iAquaLink path",
+                    "value": path.capitalize(),
+                },
             )
             self._add(
                 LocalBinarySensor,
@@ -398,7 +402,9 @@ class LocalSystem(AqualinkSystem):
                 {
                     "id": "iAquaLink/Fallback",
                     "name": "iAquaLink fail-safe fallback",
-                    "state": "on" if status.get("bridge_iaqualink_failsafe") == "fallback" else "off",
+                    "state": "on"
+                    if status.get("bridge_iaqualink_failsafe") == "fallback"
+                    else "off",
                 },
             )
         if status.get("battery") in ("ok", "low"):
