@@ -385,6 +385,28 @@ class LocalSystem(AqualinkSystem):
                     "value": rpm or "",
                 },
             )
+        path = status.get("bridge_iaqualink_path")
+        if path in ("local", "cloud"):
+            self._add(
+                LocalSensor,
+                "bridge_iaqualink_path",
+                {
+                    "id": "iAquaLink/Path",
+                    "name": "iAquaLink path",
+                    "value": path.capitalize(),
+                },
+            )
+            self._add(
+                LocalBinarySensor,
+                "bridge_iaqualink_fallback",
+                {
+                    "id": "iAquaLink/Fallback",
+                    "name": "iAquaLink fail-safe fallback",
+                    "state": "on"
+                    if status.get("bridge_iaqualink_failsafe") == "fallback"
+                    else "off",
+                },
+            )
         if status.get("battery") in ("ok", "low"):
             self._add(
                 LocalBinarySensor,
