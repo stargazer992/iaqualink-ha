@@ -571,8 +571,11 @@ async def test_infinite_light_drives_zone(
     fake.rows["Aux_V1"]["state"] = "on"
     await system.update()
     zone.sync_local()
-    assert zone.is_on is True
+    assert zone.is_on is False  # the turn-off is still settling
     assert zone.reported_on is True
+    zone._hold_until = 0
+    zone.sync_local()
+    assert zone.is_on is True
 
 
 async def test_infinite_light_falls_back_to_cloud(fake: FakeAqualinkd) -> None:
@@ -1079,3 +1082,40 @@ async def test_bridge_lights_keep_registry_zone(
         (2, "Pool Lights", "Pool_Light"),
         (1, "Spa light", "Spa_Light"),
     ]
+
+
+async def test_bridge_light_keeps_command_while_panel_lags(
+    hass: HomeAssistant,
+    fake: FakeAqualinkd,
+    client,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A light just switched on stays on while the panel button still reads off."""
+    monkeypatch.setattr(local, "INFINITE_OFF_WAIT", 0)
+    monkeypatch.setattr(local, "INFINITE_ON_WAIT", 0)
+    _bridge_lights(fake)
+    entry = await _setup_local(hass, fake, client, online=False)
+    pool = _entity(hass, "light", "icl_zone_1")
+    await hass.services.async_call(
+        "light", "turn_on", {"entity_id": pool, "rgb_color": [0, 0, 255]}, blocking=True
+    )
+    fake.rows["Pool_Light"]["state"] = "off"  # the panel button hasn't caught up
+    coordinator = entry.runtime_data.coordinators["SN00001"]
+    await coordinator.async_refresh()
+    await hass.async_block_till_done()
+    assert hass.states.get(pool).state == "on"
+
+    await hass.services.async_call(
+        "iaqualink",
+        "set_next_on",
+        {"entity_id": pool, "rgb_color": [148, 0, 211]},
+        blocking=True,
+    )
+    assert fake.requests[-1] == f"Pool_Light/rgb/set={(148 << 16) | 211}"
+
+    fake.rows["Pool_Light"]["state"] = "off"
+    for zone in entry.runtime_data.icl_lights:
+        zone._hold_until = 0
+    await coordinator.async_refresh()
+    await hass.async_block_till_done()
+    assert hass.states.get(pool).state == "off"

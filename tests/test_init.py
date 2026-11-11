@@ -727,7 +727,7 @@ async def test_pool_light_card_served(hass: HomeAssistant) -> None:
     (config,) = hass.http.async_register_static_paths.await_args.args[0]
     assert (config.url_path, config.path) == (CARD_URL, str(CARD_PATH))
     assert CARD_PATH.is_file()
-    assert add_js.call_args.args[1] == f"{CARD_URL}?v=2.5.3"
+    assert add_js.call_args.args[1] == f"{CARD_URL}?v=2.5.4"
 
 
 async def test_pool_light_card_resource(hass: HomeAssistant) -> None:
@@ -756,7 +756,7 @@ async def test_pool_light_card_resource(hass: HomeAssistant) -> None:
 
     add_js.assert_not_called()
     resources.async_update_item.assert_awaited_once_with(
-        "b", {"res_type": "module", "url": f"{CARD_URL}?v=2.5.3"}
+        "b", {"res_type": "module", "url": f"{CARD_URL}?v=2.5.4"}
     )
     resources.async_delete_item.assert_awaited_once_with("c")
     resources.async_create_item.assert_not_called()
@@ -765,5 +765,5 @@ async def test_pool_light_card_resource(hass: HomeAssistant) -> None:
     with patch("homeassistant.components.frontend.add_extra_js_url"):
         assert await async_setup(hass, {})
     resources.async_create_item.assert_awaited_once_with(
-        {"res_type": "module", "url": f"{CARD_URL}?v=2.5.3"}
+        {"res_type": "module", "url": f"{CARD_URL}?v=2.5.4"}
     )
