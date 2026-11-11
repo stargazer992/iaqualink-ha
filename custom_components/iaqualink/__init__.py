@@ -39,6 +39,7 @@ from homeassistant.exceptions import (
 from homeassistant.helpers import (
     config_validation as cv,
     device_registry as dr,
+    entity_registry as er,
     issue_registry as ir,
 )
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -69,6 +70,7 @@ from .local import (
     LocalNumber,
     LocalSelect,
     LocalSystem,
+    same_light,
 )
 from .utils import error_detail
 from .watchdog import IclWatchdog
@@ -367,6 +369,8 @@ async def _async_setup_system(
                 zone.local = local.infinite_light(zone.label)
                 zone.local_system = local
                 zone.sync_local()
+            local_zones = _local_only_zones(hass, entry, coordinator.icl, local)
+            runtime_data.icl_lights += local_zones
             local_coordinator = runtime_data.coordinators[system.serial]
             local_coordinator.cloud = coordinator
             local_coordinator.cloud_idle = cloud_up and all(
@@ -376,6 +380,63 @@ async def _async_setup_system(
                 coordinator.update_interval = UPDATE_INTERVAL_CLOUD_IDLE
         if coordinator.icl.zones:
             coordinator.watchdog = IclWatchdog(hass, coordinator, coordinator.icl)
+
+
+def _local_only_zones(
+    hass: HomeAssistant, entry: AqualinkConfigEntry, icl: IclManager, local: LocalSystem
+) -> list[IclZone]:
+    """Give each Infinite light the cloud didn't list (cloud offline) a zone of its own.
+
+    The zone keeps the number and name of the iCL light it had before, from the
+    entity registry, so light.pool_lights stays light.pool_lights; the cloud's own
+    zones replace these on the reload once it is back.
+    """
+    claimed = {id(zone.local) for zone in icl.zones.values() if zone.local is not None}
+    prefix = f"{local.serial}_icl_zone_"
+    devices = dr.async_get(hass)
+    known: dict[int, str] = {}
+    for ent in er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id):
+        number = ent.unique_id.removeprefix(prefix)
+        if (
+            ent.domain == "light"
+            and ent.unique_id.startswith(prefix)
+            and number.isdigit()
+        ):
+            device = devices.async_get(ent.device_id) if ent.device_id else None
+            known[int(number)] = (
+                ent.original_name or (device.name if device else "") or ""
+            )
+    lights = [
+        (label, light)
+        for label, light in local.infinite.items()
+        if id(light) not in claimed and light.active
+    ]
+    taken = set(icl.zones)
+    numbers: dict[str, int] = {}
+    for label, _light in lights:
+        match = next(
+            (
+                n
+                for n, name in known.items()
+                if n not in taken and same_light(name, label)
+            ),
+            None,
+        )
+        if match is not None:
+            numbers[label] = match
+            taken.add(match)
+    zones: list[IclZone] = []
+    for label, light in lights:
+        if (zone_id := numbers.get(label)) is None:
+            zone_id = next(n for n in range(1, 100) if n not in taken)
+            taken.add(zone_id)
+        name = known.get(zone_id) or str(light.data.get("name") or label)
+        zone = IclZone(icl, {"zoneId": str(zone_id), "zoneName": name})
+        zone.local = light
+        zone.local_system = local
+        zone.sync_local()
+        zones.append(zone)
+    return zones
 
 
 def _cloud_extras(cloud: AqualinkDataUpdateCoordinator) -> dict[str, Any]:

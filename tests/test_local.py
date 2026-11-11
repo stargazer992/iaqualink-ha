@@ -997,3 +997,85 @@ async def test_bridge_light_label_matches_cloud_zone(fake: FakeAqualinkd) -> Non
     assert system.infinite_light("Spa Lights") is None
     assert local.same_light("Spa light", "Spa Lights")
     assert not local.same_light("Pool light", "Spa Lights")
+
+
+def _bridge_lights(fake: FakeAqualinkd) -> None:
+    for aqd_id, name in (("Pool_Light", "Pool light"), ("Spa_Light", "Spa light")):
+        fake.rows[aqd_id] = {
+            "type": "switch",
+            "id": aqd_id,
+            "name": name,
+            "state": "off",
+            "type_ext": "switch_program",
+            "Light_Type": "7",
+            "Light_Program": "0",
+            "Program_Name": "Off",
+            "light_programs": ["Off", "Alpine White"],
+        }
+
+
+async def test_bridge_lights_without_cloud(
+    hass: HomeAssistant,
+    fake: FakeAqualinkd,
+    client,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With the cloud offline, the WaterColors lights still get light entities."""
+    monkeypatch.setattr(local, "INFINITE_OFF_WAIT", 0)
+    monkeypatch.setattr(local, "INFINITE_ON_WAIT", 0)
+    _bridge_lights(fake)
+    await _setup_local(hass, fake, client, online=False)
+    pool = _entity(hass, "light", "icl_zone_1")
+    spa = _entity(hass, "light", "icl_zone_2")
+    assert hass.states.get(pool).state == "off"
+    assert hass.states.get(spa).state == "off"
+
+    await hass.services.async_call(
+        "light",
+        "turn_on",
+        {"entity_id": pool, "rgb_color": [255, 0, 128], "brightness_pct": 40},
+        blocking=True,
+    )
+    assert fake.requests[-4:] == [
+        "Pool_Light/set=0",
+        "Pool_Light/set=1",
+        f"Pool_Light/rgb/set={(255 << 16) | 128}",
+        "Pool_Light/brightness/set=40",
+    ]
+    assert hass.states.get(pool).state == "on"
+
+    await hass.services.async_call(
+        "light", "turn_off", {"entity_id": spa}, blocking=True
+    )
+    assert fake.requests[-1] == "Spa_Light/set=0"
+
+
+async def test_bridge_lights_keep_registry_zone(
+    hass: HomeAssistant, fake: FakeAqualinkd
+) -> None:
+    """A light keeps the zone number its entity had, matched by name."""
+    from custom_components.iaqualink import _local_only_zones  # noqa: PLC0415
+
+    _bridge_lights(fake)
+    entry = _local_entry()
+    entry.add_to_hass(hass)
+    from homeassistant.helpers import device_registry as dr  # noqa: PLC0415
+
+    device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, "SN1_icl_zone_2")},
+        name="Pool Lights",
+    )
+    registry = er.async_get(hass)
+    registry.async_get_or_create(
+        "light", DOMAIN, "SN1_icl_zone_2", config_entry=entry, device_id=device.id
+    )
+    registry.async_get_or_create("light", DOMAIN, "SN1_icl_zone_1", config_entry=entry)
+    system = LocalSystem(AqualinkdClient(URL, fake.client()), "SN1", "Pool")
+    await system.get_devices()
+    icl = MagicMock(zones={})
+    zones = _local_only_zones(hass, entry, icl, system)
+    assert [(z.zone_id, z.label, z.local.aqd_id) for z in zones] == [
+        (2, "Pool Lights", "Pool_Light"),
+        (1, "Spa light", "Spa_Light"),
+    ]
