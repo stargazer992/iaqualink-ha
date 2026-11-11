@@ -159,9 +159,15 @@ class IclZone:
     def sync_local(self) -> None:
         """Take AqualinkD's on/off state; it reports reliably, unlike the cloud."""
         if self.drives_local:
-            self.is_on = self.reported_on = self.local.is_on  # type: ignore[union-attr]
+            self.reported_on = self.local.is_on  # type: ignore[union-attr]
         elif self.uses_button:
-            self.is_on = self.reported_on = self.button.is_on  # type: ignore[union-attr]
+            self.reported_on = self.button.is_on  # type: ignore[union-attr]
+        else:
+            return
+        # The panel button can read back a minute late; keep a recent command.
+        if self.settling and self.reported_on != self.desired_on:
+            return
+        self.is_on = self.reported_on
 
     async def _try_local(self, action: str, command: Any) -> bool:
         """Run a command on AqualinkD; False means fall back to the cloud."""
@@ -245,6 +251,7 @@ class IclZone:
             and await self._try_local("turn on", self.local.turn_on(rgb, percentage))
         ):
             self.is_on = True
+            self._hold()
             self.rgb = rgb
             if percentage is not None:
                 self.brightness_percentage = percentage
@@ -295,6 +302,7 @@ class IclZone:
             and await self._try_local("turn off", self.local.turn_off())
         ):
             self.is_on = False
+            self._hold()
             return
         await self._cloud(self._cloud_turn_off)
 
