@@ -27,5 +27,5 @@
     "h2>=4.3.0"
   ],
   "single_config_entry": true,
-  "version": "2.5.4"
+  "version": "2.5.5"
 }

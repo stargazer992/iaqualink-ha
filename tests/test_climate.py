@@ -136,6 +136,7 @@ async def test_thermostat_properties(
     hass: HomeAssistant,
     config_entry: MockConfigEntry,
     client: AqualinkClient,
+    caplog: pytest.LogCaptureFixture,
     heater_state: str,
     expected_action: HVACAction,
     expected_mode: HVACMode,
@@ -152,6 +153,7 @@ async def test_thermostat_properties(
     assert entity_state.attributes["hvac_action"] == expected_action
     assert entity_state.attributes["temperature"] == 84.0
     assert entity_state.attributes["current_temperature"] == 80.0
+    assert "deprecated" not in caplog.text
 
 
 async def test_thermostat_current_temperature_none(
