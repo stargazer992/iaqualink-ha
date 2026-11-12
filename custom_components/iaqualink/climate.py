@@ -24,6 +24,10 @@ _LOGGER = logging.getLogger(__name__)
 
 PARALLEL_UPDATES = 1
 
+# HA 2026.11 renamed the climate temperature properties to native_*; the old names stop
+# working in 2027.11.
+_NATIVE = hasattr(ClimateEntity, "native_target_temperature")
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -55,11 +59,15 @@ class HassAqualinkThermostat(AqualinkEntity[AqualinkThermostat], ClimateEntity):
     ) -> None:
         """Initialize AquaLink thermostat."""
         super().__init__(coordinator, dev)
-        self._attr_temperature_unit = (
+        unit = (
             UnitOfTemperature.FAHRENHEIT
             if dev.unit == "F"
             else UnitOfTemperature.CELSIUS
         )
+        if _NATIVE:
+            self._attr_native_temperature_unit = unit
+        else:
+            self._attr_temperature_unit = unit
         self._attr_min_temp = dev.min_temperature
         self._attr_max_temp = dev.max_temperature
 
@@ -113,7 +121,7 @@ class HassAqualinkThermostat(AqualinkEntity[AqualinkThermostat], ClimateEntity):
 
     @property
     @override
-    def target_temperature(self) -> float:
+    def native_target_temperature(self) -> float:
         """Return the current target temperature."""
         return float(self.dev.state)
 
@@ -129,8 +137,20 @@ class HassAqualinkThermostat(AqualinkEntity[AqualinkThermostat], ClimateEntity):
 
     @property
     @override
-    def current_temperature(self) -> float | None:
+    def native_current_temperature(self) -> float | None:
         """Return the current temperature."""
         if self.dev.current_temperature != "":
             return float(self.dev.current_temperature)
         return None
+
+    if not _NATIVE:
+
+        @property
+        def target_temperature(self) -> float:
+            """Return the current target temperature (HA before 2026.11)."""
+            return self.native_target_temperature
+
+        @property
+        def current_temperature(self) -> float | None:
+            """Return the current temperature (HA before 2026.11)."""
+            return self.native_current_temperature
