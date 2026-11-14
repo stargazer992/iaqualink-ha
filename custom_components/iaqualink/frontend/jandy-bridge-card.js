@@ -1,12 +1,12 @@
 /*
- * jandy-bridge-card.js  v1.2.0
+ * jandy-bridge-card.js  v1.3.0
  * The Jandy Bridge's own salt + RS8 card (the bridge page in its ?embed view), inside Home Assistant.
  * The integration serves and loads this file; the page and its API go through
  * /api/iaqualink/bridge/ with the HA login, so it works wherever HA does and needs no bridge password.
  *
  * The bridge page runs in a sandboxed iframe with an opaque origin: it can't reach HA, its login
  * or its storage. Its fetches to the bridge API are posted to this card, which sends only
- * bridge pass-through requests (GETs, and the POSTs the pass-through allows) with the HA login.
+ * bridge pass-through requests (GETs, and POST/PUT to the bridge's api/ routes) with the HA login.
  *
  * Card YAML:
  *   type: custom:jandy-bridge-card
@@ -18,7 +18,7 @@
 const JBC_BASE = "/api/iaqualink/bridge/";
 const JBC_RETRY_MS = 30000;
 const JBC_CHECK_MS = 60000;
-const JBC_POSTS = new Set(["api/cmd", "api/ha/link/request", "api/ui", "api/ui/press"]);
+const JBC_WRITE = /^api\/[\w-]+(\/[\w-]+)*$/;
 const JBC_MAX_BODY = 65536;
 const JBC_STORE_KEY = /^jb[A-Za-z_][\w-]{0,40}$/;
 
@@ -184,10 +184,11 @@ class JandyBridgeCard extends HTMLElement {
         const rel = u.pathname.slice(JBC_BASE.length);
         if (u.origin !== location.origin || !u.pathname.startsWith(JBC_BASE) || rel.split("/").includes(".."))
           throw new Error("not a Jandy Bridge request");
-        if (d.method !== "GET" && !(d.method === "POST" && JBC_POSTS.has(rel))) throw new Error("not allowed: " + d.method + " " + rel);
+        const write = (d.method === "POST" || d.method === "PUT") && JBC_WRITE.test(rel) && !/(^|\/)set$/.test(rel);
+        if (d.method !== "GET" && !write) throw new Error("not allowed: " + d.method + " " + rel);
         if (d.body != null && (typeof d.body !== "string" || d.body.length > JBC_MAX_BODY)) throw new Error("bad body");
         const init = { method: d.method };
-        if (d.method === "POST") {
+        if (d.method !== "GET") {
           init.headers = { "Content-Type": /^[\w.+-]+\/[\w.+-]+$/.test(d.type) ? d.type : "application/json" };
           init.body = d.body ?? "";
         }

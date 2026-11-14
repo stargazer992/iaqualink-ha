@@ -737,8 +737,8 @@ async def test_pool_light_card_served(hass: HomeAssistant) -> None:
     assert CARD_PATH.is_file()
     assert BRIDGE_CARD_PATH.is_file()
     assert [c.args[1] for c in add_js.call_args_list] == [
-        f"{CARD_URL}?v=2.6.2",
-        f"{BRIDGE_CARD_URL}?v=2.6.2",
+        f"{CARD_URL}?v=2.6.3",
+        f"{BRIDGE_CARD_URL}?v=2.6.3",
     ]
     (view,) = hass.http.register_view.call_args.args
     assert isinstance(view, JandyBridgeView)
@@ -774,11 +774,11 @@ async def test_pool_light_card_resource(hass: HomeAssistant) -> None:
 
     add_js.assert_not_called()
     resources.async_update_item.assert_awaited_once_with(
-        "b", {"res_type": "module", "url": f"{CARD_URL}?v=2.6.2"}
+        "b", {"res_type": "module", "url": f"{CARD_URL}?v=2.6.3"}
     )
     resources.async_delete_item.assert_awaited_once_with("c")
     resources.async_create_item.assert_awaited_once_with(
-        {"res_type": "module", "url": f"{BRIDGE_CARD_URL}?v=2.6.2"}
+        {"res_type": "module", "url": f"{BRIDGE_CARD_URL}?v=2.6.3"}
     )
 
     resources.async_create_item.reset_mock()
@@ -786,6 +786,6 @@ async def test_pool_light_card_resource(hass: HomeAssistant) -> None:
     with patch("homeassistant.components.frontend.add_extra_js_url"):
         assert await async_setup(hass, {})
     assert [c.args[0] for c in resources.async_create_item.await_args_list] == [
-        {"res_type": "module", "url": f"{CARD_URL}?v=2.6.2"},
-        {"res_type": "module", "url": f"{BRIDGE_CARD_URL}?v=2.6.2"},
+        {"res_type": "module", "url": f"{CARD_URL}?v=2.6.3"},
+        {"res_type": "module", "url": f"{BRIDGE_CARD_URL}?v=2.6.3"},
     ]

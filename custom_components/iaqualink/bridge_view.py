@@ -18,7 +18,8 @@ BRIDGE_PROXY_URL = "/api/iaqualink/bridge"
 PUBLIC = {"brand.png", "icon.png", "wiring.svg"}
 # AqualinkD-compatible GET /api/<id>/set changes state; the card never uses it.
 GET_SET = re.compile(r"^api/(.*/)?set$")
-POSTS = {"api/cmd", "api/ha/link/request", "api/ui", "api/ui/press"}
+# Any bridge API write (POST/PUT), so new page features work in HA without an update.
+WRITE = re.compile(r"^api/[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)*$")
 TIMEOUT = httpx.Timeout(10.0)
 
 
@@ -46,11 +47,20 @@ class JandyBridgeView(HomeAssistantView):
 
     async def post(self, request: web.Request, path: str) -> web.Response:
         """Send a command to the bridge."""
+        return await self._write(request, path, "POST")
+
+    async def put(self, request: web.Request, path: str) -> web.Response:
+        """Save the bridge's settings."""
+        return await self._write(request, path, "PUT")
+
+    async def _write(
+        self, request: web.Request, path: str, method: str
+    ) -> web.Response:
         if not request[KEY_AUTHENTICATED]:
             raise web.HTTPUnauthorized
-        if path not in POSTS:
+        if not WRITE.match(path) or GET_SET.match(path):
             raise web.HTTPForbidden
-        return await self._forward(request, path, "POST")
+        return await self._forward(request, path, method)
 
     async def _forward(
         self, request: web.Request, path: str, method: str
@@ -66,9 +76,9 @@ class JandyBridgeView(HomeAssistantView):
                 method,
                 f"{base}/{path}",
                 params=dict(request.query),
-                content=await request.read() if method == "POST" else None,
+                content=await request.read() if method != "GET" else None,
                 headers={"Content-Type": request.content_type}
-                if method == "POST"
+                if method != "GET"
                 else None,
                 timeout=TIMEOUT,
             )
