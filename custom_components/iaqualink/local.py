@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import re
 from typing import Any, override
+from urllib.parse import urlparse, urlunparse
 
 import httpx
 from iaqualink.device import (
@@ -22,7 +23,32 @@ from iaqualink.exception import AqualinkServiceException
 from iaqualink.system import AqualinkSystem
 
 STATUS_SERVICE_TEXT = "Service Mode"
+STATUS_TIMEOUT_TEXT = "Timeout Mode"
 OFFLINE_PREFIXES = ("ERROR", "Not Connected", "Connecting")
+
+
+def bridge_endpoint(
+    url: str,
+    password: str | None = None,
+    username: str | None = None,
+) -> tuple[str, tuple[str, str] | None]:
+    """Strip userinfo from *url* and build Optional HTTP Basic credentials.
+
+    Credentials may come from the URL (`http://user:pass@host`) or from the
+    optional password field (username defaults to ``jandy``; the bridge accepts
+    any username with ``JB_WEB_PASSWORD``).
+    """
+    parsed = urlparse(str(url).strip())
+    host = parsed.hostname or ""
+    if parsed.port:
+        host = f"{host}:{parsed.port}"
+    clean = urlunparse((parsed.scheme, host, parsed.path or "", "", "", "")).rstrip(
+        "/"
+    )
+    user = username or parsed.username
+    pwd = password if password not in (None, "") else parsed.password
+    auth = (user or "jandy", pwd) if pwd not in (None, "") else None
+    return clean, auth
 
 CLOUD_NAMES = {
     "Filter_Pump": "pool_pump",
@@ -94,9 +120,16 @@ class AqualinkdError(AqualinkServiceException):
 class AqualinkdClient:
     """Talks to AqualinkD's HTTP API."""
 
-    def __init__(self, base_url: str, httpx_client: httpx.AsyncClient) -> None:
-        """Remember where AqualinkD runs."""
-        self.base_url = base_url.rstrip("/")
+    def __init__(
+        self,
+        base_url: str,
+        httpx_client: httpx.AsyncClient,
+        *,
+        password: str | None = None,
+        username: str | None = None,
+    ) -> None:
+        """Remember where AqualinkD runs (optional Basic auth for a passworded bridge)."""
+        self.base_url, self._auth = bridge_endpoint(base_url, password, username)
         self._http = httpx_client
 
     @property
@@ -107,7 +140,10 @@ class AqualinkdClient:
     async def _get(self, path: str, **params: Any) -> httpx.Response:
         try:
             response = await self._http.get(
-                f"{self.base_url}/api/{path}", params=params or None, timeout=10
+                f"{self.base_url}/api/{path}",
+                params=params or None,
+                auth=self._auth,
+                timeout=10,
             )
         except httpx.HTTPError as err:
             raise AqualinkdError(f"AqualinkD unreachable: {err}") from err

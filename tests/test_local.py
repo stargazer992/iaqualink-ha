@@ -24,6 +24,7 @@ from custom_components.iaqualink.local import (
     AqualinkdClient,
     AqualinkdError,
     LocalSystem,
+    bridge_endpoint,
     cloud_name,
 )
 from homeassistant.components.climate import HVACAction
@@ -767,6 +768,22 @@ def test_ws_url() -> None:
         "ws://aqualinkd.local/"
     )
     assert AqualinkdClient("https://pi:8443/", None).ws_url == "wss://pi:8443/"
+
+
+def test_bridge_endpoint_strips_userinfo_and_builds_auth() -> None:
+    """URL userinfo and the optional password both become Basic auth."""
+    url, auth = bridge_endpoint("http://bob:secret@pi.local:8080/")
+    assert url == "http://pi.local:8080"
+    assert auth == ("bob", "secret")
+    url, auth = bridge_endpoint("http://pi.local:8080", password="pw")
+    assert url == "http://pi.local:8080"
+    assert auth == ("jandy", "pw")
+    url, auth = bridge_endpoint("http://pi.local:8080")
+    assert url == "http://pi.local:8080"
+    assert auth is None
+    client = AqualinkdClient("http://u:p@host:9/", None)
+    assert client.base_url == "http://host:9"
+    assert client._auth == ("u", "p")
 
 
 async def test_local_thermostat_hides_no_reading(fake: FakeAqualinkd) -> None:

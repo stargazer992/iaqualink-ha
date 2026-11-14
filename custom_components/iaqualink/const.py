@@ -21,5 +21,7 @@ CLOUD_GRACE_FAILURES = 3
 
 CONF_CONNECTION = "connection"
 CONF_AQUALINKD_URL = "aqualinkd_url"
+# Optional Basic auth for JB_WEB_PASSWORD / AqualinkD (any username; default "jandy").
+CONF_AQUALINKD_PASSWORD = "aqualinkd_password"
 CONNECTION_CLOUD = "cloud"
 CONNECTION_LOCAL = "local"

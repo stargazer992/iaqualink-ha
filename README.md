@@ -146,6 +146,7 @@ You can go back at any time by removing this integration from HACS and restartin
 | v2.5.0 | `Cloud mismatch` binary sensor in Local mode: on when Jandy Bridge and the cloud disagree on a button, setpoint or pump RPM for 15 minutes. |
 | v2.4.2 | iAquaLink status sensor: the system's status on the iAquaLink cloud (Online / Offline / Service), also while Local is in use. |
 | v2.4.0 | Local means Jandy Bridge (`http://<host>:8080`); labels, repair and default address updated. |
+| v2.6.4 | Local: optional Jandy Bridge Basic auth (`aqualinkd_password` or `http://user:pass@host`) for `JB_WEB_PASSWORD`; Timeout Mode maps to Service like Service Mode. |
 
 **Waiting on hardware (AqualinkD Radxa kit not yet wired):** everything in Local mode has only been tested against a simulated AqualinkD. Still to do once it's connected:
 
