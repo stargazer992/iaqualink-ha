@@ -35,11 +35,14 @@ class JandyBridgeCard extends HTMLElement {
 
   connectedCallback() {
     if (this._frame && !this._timer) this._timer = setInterval(() => this._fit(), 300);
+    else if (this._started && !this._frame && !this._retry) this._load();
   }
 
   disconnectedCallback() {
     clearInterval(this._timer);
     this._timer = null;
+    clearTimeout(this._retry);
+    this._retry = null;
   }
 
   _message(text) {
@@ -59,7 +62,7 @@ class JandyBridgeCard extends HTMLElement {
       html = await r.text();
     } catch (e) {
       this._message("Jandy Bridge not reachable (" + e.message + "). Trying again in 30 s.");
-      setTimeout(() => this._load(), JBC_RETRY_MS);
+      if (this.isConnected) this._retry = setTimeout(() => { this._retry = null; this._load(); }, JBC_RETRY_MS);
       return;
     }
     if (this._config.dark && localStorage.getItem("jb_rs8dark") === null) localStorage.setItem("jb_rs8dark", "1");
