@@ -93,9 +93,18 @@ async def test_command_forwarded(hass: HomeAssistant) -> None:
     }
 
 
-@pytest.mark.parametrize("path", ["api/ui", "api/ui/press", "api/ha/link/request"])
+@pytest.mark.parametrize(
+    "path",
+    [
+        "api/ui",
+        "api/ui/press",
+        "api/ha/link/request",
+        "api/config/restore",
+        "api/new_route",
+    ],
+)
 async def test_page_posts_forwarded(hass: HomeAssistant, path: str) -> None:
-    """Shared display settings, presses in progress and LOCAL/CLOUD clicks reach the bridge."""
+    """Every bridge API write reaches the bridge, including routes added later."""
     _entry(hass)
     client = _client(httpx.Response(200, json={"ok": True}))
     with patch(
@@ -127,8 +136,23 @@ async def test_logged_out_refused(hass: HomeAssistant) -> None:
     client.request.assert_awaited_once()
 
 
+async def test_settings_save_forwarded(hass: HomeAssistant) -> None:
+    """The page's settings save (PUT api/config) reaches the bridge with its body."""
+    _entry(hass)
+    client = _client(httpx.Response(200, json={"ok": True}))
+    with patch(
+        "custom_components.iaqualink.bridge_view.get_async_client", return_value=client
+    ):
+        resp = await JandyBridgeView().put(
+            _request(hass, "PUT", "api/config", body=b"{}"), "api/config"
+        )
+    assert resp.status == 200
+    assert client.request.await_args.args == ("PUT", BRIDGE + "/api/config")
+    assert client.request.await_args.kwargs["content"] == b"{}"
+
+
 async def test_other_writes_refused(hass: HomeAssistant) -> None:
-    """Settings saves and the GET .../set API stay off the card's path."""
+    """The .../set API and writes outside api/ stay off the card's path."""
     _entry(hass)
     client = _client(httpx.Response(200))
     view = JandyBridgeView()
@@ -141,8 +165,15 @@ async def test_other_writes_refused(hass: HomeAssistant) -> None:
             await view.get(
                 _request(hass, "GET", "api/SWG/Percent/set"), "api/SWG/Percent/set"
             )
+        for path in ("api/aux_3/set", "index.html", "api", "api/../x", "api/a//b"):
+            with pytest.raises(web.HTTPForbidden):
+                await view.post(_request(hass, "POST", path), path)
         with pytest.raises(web.HTTPForbidden):
-            await view.post(_request(hass, "POST", "api/config"), "api/config")
+            await view.put(_request(hass, "PUT", "api/x/set"), "api/x/set")
+        with pytest.raises(web.HTTPUnauthorized):
+            await view.put(
+                _request(hass, "PUT", "api/config", auth=False), "api/config"
+            )
     client.request.assert_not_called()
 
 
