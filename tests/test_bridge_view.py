@@ -123,6 +123,10 @@ async def test_other_writes_refused(hass: HomeAssistant) -> None:
         with pytest.raises(web.HTTPForbidden):
             await view.get(_request(hass, "GET", "api/aux_3/set"), "api/aux_3/set")
         with pytest.raises(web.HTTPForbidden):
+            await view.get(
+                _request(hass, "GET", "api/SWG/Percent/set"), "api/SWG/Percent/set"
+            )
+        with pytest.raises(web.HTTPForbidden):
             await view.post(_request(hass, "POST", "api/config"), "api/config")
     client.request.assert_not_called()
 
