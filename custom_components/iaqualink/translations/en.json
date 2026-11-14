@@ -77,11 +77,13 @@
         "description": "Cloud uses the iAquaLink cloud. Local controls pumps, heaters and the salt cell through Jandy Bridge on your network (or AqualinkD, which has the same API), and falls back to the cloud while it is offline; the iCL lights still use the cloud.",
         "data": {
           "connection": "Connection",
-          "aqualinkd_url": "Jandy Bridge address"
+          "aqualinkd_url": "Jandy Bridge address",
+          "aqualinkd_password": "Jandy Bridge password"
         },
         "data_description": {
           "connection": "Where equipment commands are sent.",
-          "aqualinkd_url": "Jandy Bridge's web address, for example {example_url}. Only used for Local."
+          "aqualinkd_url": "Jandy Bridge's web address, for example {example_url}. Only used for Local. You can also put the password in the URL as http://user:password@host:8080.",
+          "aqualinkd_password": "JB_WEB_PASSWORD on the bridge, if set. Leave blank to keep the saved password. Any username works; Local uses \"jandy\"."
         }
       }
     }

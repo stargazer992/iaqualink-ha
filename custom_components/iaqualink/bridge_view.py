@@ -11,7 +11,8 @@ from homeassistant.components.http import KEY_AUTHENTICATED, KEY_HASS, HomeAssis
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.httpx_client import get_async_client
 
-from .const import CONF_AQUALINKD_URL, DOMAIN
+from .const import CONF_AQUALINKD_PASSWORD, CONF_AQUALINKD_URL, DOMAIN
+from .local import bridge_endpoint
 
 BRIDGE_PROXY_URL = "/api/iaqualink/bridge"
 # Images the page links with <img>/<link>, which can't carry HA's login.
@@ -23,10 +24,12 @@ WRITE = re.compile(r"^api/[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)*$")
 TIMEOUT = httpx.Timeout(10.0)
 
 
-def _bridge_url(hass: HomeAssistant) -> str | None:
+def _bridge_endpoint(hass: HomeAssistant) -> tuple[str, tuple[str, str] | None] | None:
     for entry in hass.config_entries.async_loaded_entries(DOMAIN):
         if url := entry.options.get(CONF_AQUALINKD_URL):
-            return str(url).rstrip("/")
+            return bridge_endpoint(
+                str(url), entry.options.get(CONF_AQUALINKD_PASSWORD)
+            )
     return None
 
 
@@ -66,11 +69,12 @@ class JandyBridgeView(HomeAssistantView):
         self, request: web.Request, path: str, method: str
     ) -> web.Response:
         hass = request.app[KEY_HASS]
-        base = _bridge_url(hass)
-        if base is None:
+        endpoint = _bridge_endpoint(hass)
+        if endpoint is None:
             return web.json_response(
                 {"error": "no Jandy Bridge address set"}, status=503
             )
+        base, auth = endpoint
         try:
             resp = await get_async_client(hass).request(
                 method,
@@ -80,6 +84,7 @@ class JandyBridgeView(HomeAssistantView):
                 headers={"Content-Type": request.content_type}
                 if method != "GET"
                 else None,
+                auth=auth,
                 timeout=TIMEOUT,
             )
         except httpx.HTTPError as err:

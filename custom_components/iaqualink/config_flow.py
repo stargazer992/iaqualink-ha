@@ -29,6 +29,7 @@ from homeassistant.helpers.selector import (
 from homeassistant.util.ssl import SSL_ALPN_HTTP11_HTTP2
 
 from .const import (
+    CONF_AQUALINKD_PASSWORD,
     CONF_AQUALINKD_URL,
     CONF_CONNECTION,
     CONNECTION_CLOUD,
@@ -158,21 +159,31 @@ class AqualinkOptionsFlow(OptionsFlowWithReload):
         errors: dict[str, str] = {}
         if user_input is not None:
             url = str(user_input.get(CONF_AQUALINKD_URL) or "").strip().rstrip("/")
+            options = self.config_entry.options
+            # Blank password keeps the previously saved one (never echo it in the form).
+            password = str(user_input.get(CONF_AQUALINKD_PASSWORD) or "").strip()
+            if not password:
+                password = str(options.get(CONF_AQUALINKD_PASSWORD) or "")
             if user_input[CONF_CONNECTION] == CONNECTION_LOCAL:
                 if not url.startswith(("http://", "https://")):
                     errors[CONF_AQUALINKD_URL] = "invalid_url"
                 else:
                     try:
-                        await AqualinkdClient(url, get_async_client(self.hass)).status()
-                    except AqualinkdError, ValueError:
+                        await AqualinkdClient(
+                            url,
+                            get_async_client(self.hass),
+                            password=password or None,
+                        ).status()
+                    except (AqualinkdError, ValueError):
                         errors["base"] = "cannot_connect_aqualinkd"
             if not errors:
-                return self.async_create_entry(
-                    data={
-                        CONF_CONNECTION: user_input[CONF_CONNECTION],
-                        CONF_AQUALINKD_URL: url or DEFAULT_AQUALINKD_URL,
-                    }
-                )
+                data = {
+                    CONF_CONNECTION: user_input[CONF_CONNECTION],
+                    CONF_AQUALINKD_URL: url or DEFAULT_AQUALINKD_URL,
+                }
+                if password:
+                    data[CONF_AQUALINKD_PASSWORD] = password
+                return self.async_create_entry(data=data)
         options = self.config_entry.options
         schema = vol.Schema(
             {
@@ -190,6 +201,7 @@ class AqualinkOptionsFlow(OptionsFlowWithReload):
                     CONF_AQUALINKD_URL,
                     default=options.get(CONF_AQUALINKD_URL, DEFAULT_AQUALINKD_URL),
                 ): str,
+                vol.Optional(CONF_AQUALINKD_PASSWORD, default=""): str,
             }
         )
         return self.async_show_form(

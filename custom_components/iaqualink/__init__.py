@@ -53,6 +53,7 @@ from .bridge_view import JandyBridgeView
 from .cloud import CloudPumpRpmSetpoint, cloud_extras
 from .const import (
     AQUALINKD_RETRY_SECONDS,
+    CONF_AQUALINKD_PASSWORD,
     CONF_AQUALINKD_URL,
     CONF_CONNECTION,
     CONNECTION_LOCAL,
@@ -464,7 +465,11 @@ async def _async_setup_local(
     """Take the equipment from AqualinkD; the cloud keeps only the iCL zones."""
     system = cloud.system
     local = LocalSystem(
-        AqualinkdClient(entry.options[CONF_AQUALINKD_URL], get_async_client(hass)),
+        AqualinkdClient(
+            entry.options[CONF_AQUALINKD_URL],
+            get_async_client(hass),
+            password=entry.options.get(CONF_AQUALINKD_PASSWORD),
+        ),
         system.serial,
         system.name,
     )

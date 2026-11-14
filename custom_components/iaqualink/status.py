@@ -20,7 +20,7 @@ def system_status(coordinator: AqualinkDataUpdateCoordinator) -> str:
     system = coordinator.system
     if getattr(system, "NAME", None) == "aqualinkd":
         text = getattr(system, "status_text", None) or ""
-        if text == "Service Mode":
+        if text in ("Service Mode", "Timeout Mode"):
             return STATUS_SERVICE
         if coordinator.last_update_success and system.online is True:
             return STATUS_ONLINE
