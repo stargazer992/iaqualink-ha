@@ -18,7 +18,7 @@ BRIDGE_PROXY_URL = "/api/iaqualink/bridge"
 PUBLIC = {"brand.png", "icon.png", "wiring.svg"}
 # AqualinkD-compatible GET /api/<id>/set changes state; the card never uses it.
 GET_SET = re.compile(r"^api/(.*/)?set$")
-POSTS = {"api/cmd"}
+POSTS = {"api/cmd", "api/ha/link/request"}
 TIMEOUT = httpx.Timeout(10.0)
 
 
