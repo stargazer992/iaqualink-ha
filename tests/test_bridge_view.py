@@ -93,6 +93,21 @@ async def test_command_forwarded(hass: HomeAssistant) -> None:
     }
 
 
+@pytest.mark.parametrize("path", ["api/ui", "api/ui/press", "api/ha/link/request"])
+async def test_page_posts_forwarded(hass: HomeAssistant, path: str) -> None:
+    """Shared display settings, presses in progress and LOCAL/CLOUD clicks reach the bridge."""
+    _entry(hass)
+    client = _client(httpx.Response(200, json={"ok": True}))
+    with patch(
+        "custom_components.iaqualink.bridge_view.get_async_client", return_value=client
+    ):
+        resp = await JandyBridgeView().post(
+            _request(hass, "POST", path, body=b"{}"), path
+        )
+    assert resp.status == 200
+    assert client.request.await_args.args == ("POST", BRIDGE + "/" + path)
+
+
 async def test_logged_out_refused(hass: HomeAssistant) -> None:
     """Without an HA login only the page's images load."""
     _entry(hass)

@@ -1,5 +1,5 @@
 /*
- * jandy-bridge-card.js  v1.0.0
+ * jandy-bridge-card.js  v1.1.0
  * The Jandy Bridge's own salt + RS8 card (the bridge page in its ?embed view), inside Home Assistant.
  * The integration serves and loads this file; the page and its API go through
  * /api/iaqualink/bridge/ with the HA login, so it works wherever HA does and needs no bridge password.
@@ -7,9 +7,13 @@
  * Card YAML:
  *   type: custom:jandy-bridge-card
  *   dark: true        # optional: start in the dark faceplate in a browser that hasn't picked one
+ *
+ * Display settings and presses in progress come from the bridge, so the card and the bridge page match;
+ * the card reloads the page by itself when the bridge's page changes.
  */
 const JBC_BASE = "/api/iaqualink/bridge/";
 const JBC_RETRY_MS = 30000;
+const JBC_CHECK_MS = 60000;
 
 class JandyBridgeCard extends HTMLElement {
   setConfig(config) {
@@ -34,7 +38,11 @@ class JandyBridgeCard extends HTMLElement {
   }
 
   connectedCallback() {
-    if (this._frame && !this._timer) this._timer = setInterval(() => this._fit(), 300);
+    if (this._frame && !this._timer) {
+      this._timer = setInterval(() => this._fit(), 300);
+      this._check = setInterval(() => this._changed(), JBC_CHECK_MS);
+      this._changed();
+    }
     else if (this._started && !this._frame && !this._retry) this._load();
   }
 
@@ -43,6 +51,17 @@ class JandyBridgeCard extends HTMLElement {
     this._timer = null;
     clearTimeout(this._retry);
     this._retry = null;
+    clearInterval(this._check);
+    this._check = null;
+  }
+
+  async _changed() {
+    try {
+      const r = await this._hass.fetchWithAuth(JBC_BASE);
+      if (r.ok && (await r.text()) !== this._html) this._load();
+    } catch (e) {
+      /* bridge away for a moment: keep the page, the next check retries */
+    }
   }
 
   _message(text) {
@@ -65,6 +84,7 @@ class JandyBridgeCard extends HTMLElement {
       if (this.isConnected) this._retry = setTimeout(() => { this._retry = null; this._load(); }, JBC_RETRY_MS);
       return;
     }
+    this._html = html;
     if (this._config.dark && localStorage.getItem("jb_rs8dark") === null) localStorage.setItem("jb_rs8dark", "1");
     const base = new URL(JBC_BASE, location.href).href;
     const boot =
@@ -80,6 +100,8 @@ class JandyBridgeCard extends HTMLElement {
     this._frame = f;
     clearInterval(this._timer);
     this._timer = setInterval(() => this._fit(), 300);
+    clearInterval(this._check);
+    this._check = setInterval(() => this._changed(), JBC_CHECK_MS);
   }
 
   _fit() {
