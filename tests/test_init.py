@@ -715,26 +715,44 @@ async def test_pool_light_card_served(hass: HomeAssistant) -> None:
     from unittest.mock import AsyncMock, MagicMock, patch  # noqa: PLC0415
 
     from custom_components.iaqualink import (  # noqa: PLC0415
+        BRIDGE_CARD_PATH,
+        BRIDGE_CARD_URL,
         CARD_PATH,
         CARD_URL,
         async_setup,
+    )
+    from custom_components.iaqualink.bridge_view import (  # noqa: PLC0415
+        JandyBridgeView,
     )
 
     hass.http = MagicMock(async_register_static_paths=AsyncMock())
     with patch("homeassistant.components.frontend.add_extra_js_url") as add_js:
         assert await async_setup(hass, {})
 
-    (config,) = hass.http.async_register_static_paths.await_args.args[0]
-    assert (config.url_path, config.path) == (CARD_URL, str(CARD_PATH))
+    configs = hass.http.async_register_static_paths.await_args.args[0]
+    assert [(c.url_path, c.path) for c in configs] == [
+        (CARD_URL, str(CARD_PATH)),
+        (BRIDGE_CARD_URL, str(BRIDGE_CARD_PATH)),
+    ]
     assert CARD_PATH.is_file()
-    assert add_js.call_args.args[1] == f"{CARD_URL}?v=2.5.5"
+    assert BRIDGE_CARD_PATH.is_file()
+    assert [c.args[1] for c in add_js.call_args_list] == [
+        f"{CARD_URL}?v=2.6.0",
+        f"{BRIDGE_CARD_URL}?v=2.6.0",
+    ]
+    (view,) = hass.http.register_view.call_args.args
+    assert isinstance(view, JandyBridgeView)
 
 
 async def test_pool_light_card_resource(hass: HomeAssistant) -> None:
     """With storage-mode resources the card is a Lovelace resource, kept current."""
     from unittest.mock import AsyncMock, MagicMock, patch  # noqa: PLC0415
 
-    from custom_components.iaqualink import CARD_URL, async_setup  # noqa: PLC0415
+    from custom_components.iaqualink import (  # noqa: PLC0415
+        BRIDGE_CARD_URL,
+        CARD_URL,
+        async_setup,
+    )
     from homeassistant.components.lovelace.const import LOVELACE_DATA  # noqa: PLC0415
 
     items = [
@@ -756,14 +774,18 @@ async def test_pool_light_card_resource(hass: HomeAssistant) -> None:
 
     add_js.assert_not_called()
     resources.async_update_item.assert_awaited_once_with(
-        "b", {"res_type": "module", "url": f"{CARD_URL}?v=2.5.5"}
+        "b", {"res_type": "module", "url": f"{CARD_URL}?v=2.6.0"}
     )
     resources.async_delete_item.assert_awaited_once_with("c")
-    resources.async_create_item.assert_not_called()
+    resources.async_create_item.assert_awaited_once_with(
+        {"res_type": "module", "url": f"{BRIDGE_CARD_URL}?v=2.6.0"}
+    )
 
+    resources.async_create_item.reset_mock()
     resources.async_items.return_value = [items[0]]
     with patch("homeassistant.components.frontend.add_extra_js_url"):
         assert await async_setup(hass, {})
-    resources.async_create_item.assert_awaited_once_with(
-        {"res_type": "module", "url": f"{CARD_URL}?v=2.5.5"}
-    )
+    assert [c.args[0] for c in resources.async_create_item.await_args_list] == [
+        {"res_type": "module", "url": f"{CARD_URL}?v=2.6.0"},
+        {"res_type": "module", "url": f"{BRIDGE_CARD_URL}?v=2.6.0"},
+    ]
