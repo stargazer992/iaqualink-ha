@@ -94,7 +94,7 @@ class JandyBridgeCard extends HTMLElement {
     html = /<head[^>]*>/i.test(html) ? html.replace(/<head[^>]*>/i, (m) => m + boot) : boot + html;
     const f = document.createElement("iframe");
     f.title = "Jandy Bridge";
-    f.style.cssText = "border:0;width:100%;height:420px;display:block;background:transparent;color-scheme:normal";
+    f.style.cssText = "border:0;width:100%;height:420px;display:block;background:transparent;color-scheme:light";
     f.srcdoc = html;
     this.replaceChildren(f);
     this._frame = f;
