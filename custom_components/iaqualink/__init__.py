@@ -49,6 +49,7 @@ from homeassistant.helpers.typing import ConfigType
 from homeassistant.loader import async_get_integration
 from homeassistant.util.ssl import SSL_ALPN_HTTP11_HTTP2
 
+from .bridge_view import JandyBridgeView
 from .cloud import CloudPumpRpmSetpoint, cloud_extras
 from .const import (
     AQUALINKD_RETRY_SECONDS,
@@ -82,6 +83,8 @@ PARALLEL_UPDATES = 0
 RETRY_SKIPPED_SYSTEMS_AFTER = 300
 CARD_URL = "/iaqualink/iaqualink-pool-light-card.js"
 CARD_PATH = Path(__file__).parent / "frontend" / "iaqualink-pool-light-card.js"
+BRIDGE_CARD_URL = "/iaqualink/jandy-bridge-card.js"
+BRIDGE_CARD_PATH = Path(__file__).parent / "frontend" / "jandy-bridge-card.js"
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
@@ -129,15 +132,20 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
     integration = await async_get_integration(hass, DOMAIN)
     await hass.http.async_register_static_paths(
-        [StaticPathConfig(CARD_URL, str(CARD_PATH), True)]
+        [
+            StaticPathConfig(CARD_URL, str(CARD_PATH), True),
+            StaticPathConfig(BRIDGE_CARD_URL, str(BRIDGE_CARD_PATH), True),
+        ]
     )
-    url = f"{CARD_URL}?v={integration.version}"
+    hass.http.register_view(JandyBridgeView())
 
     async def _register(_event: Event | None = None) -> None:
         # A Lovelace resource loads after the scoped custom element registry
         # polyfill; an extra JS URL can load before it and the card goes missing.
-        if not await _async_register_card_resource(hass, url):
-            add_extra_js_url(hass, url)
+        for card in (CARD_URL, BRIDGE_CARD_URL):
+            url = f"{card}?v={integration.version}"
+            if not await _async_register_card_resource(hass, url):
+                add_extra_js_url(hass, url)
 
     if hass.state is CoreState.running:
         await _register()
@@ -161,7 +169,7 @@ async def _async_register_card_resource(hass: HomeAssistant, url: str) -> bool:
     mine = [
         item
         for item in resources.async_items()
-        if str(item.get("url", "")).split("?")[0] == CARD_URL
+        if str(item.get("url", "")).split("?")[0] == url.split("?")[0]
     ]
     if not mine:
         await resources.async_create_item({"res_type": "module", "url": url})
