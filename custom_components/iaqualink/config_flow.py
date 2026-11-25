@@ -174,7 +174,7 @@ class AqualinkOptionsFlow(OptionsFlowWithReload):
                             get_async_client(self.hass),
                             password=password or None,
                         ).status()
-                    except (AqualinkdError, ValueError):
+                    except AqualinkdError, ValueError:
                         errors["base"] = "cannot_connect_aqualinkd"
             if not errors:
                 data = {

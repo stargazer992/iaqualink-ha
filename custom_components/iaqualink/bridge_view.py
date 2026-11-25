@@ -27,9 +27,7 @@ TIMEOUT = httpx.Timeout(10.0)
 def _bridge_endpoint(hass: HomeAssistant) -> tuple[str, tuple[str, str] | None] | None:
     for entry in hass.config_entries.async_loaded_entries(DOMAIN):
         if url := entry.options.get(CONF_AQUALINKD_URL):
-            return bridge_endpoint(
-                str(url), entry.options.get(CONF_AQUALINKD_PASSWORD)
-            )
+            return bridge_endpoint(str(url), entry.options.get(CONF_AQUALINKD_PASSWORD))
     return None
 
 
