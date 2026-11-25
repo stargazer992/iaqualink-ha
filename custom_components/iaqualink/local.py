@@ -42,13 +42,12 @@ def bridge_endpoint(
     host = parsed.hostname or ""
     if parsed.port:
         host = f"{host}:{parsed.port}"
-    clean = urlunparse((parsed.scheme, host, parsed.path or "", "", "", "")).rstrip(
-        "/"
-    )
+    clean = urlunparse((parsed.scheme, host, parsed.path or "", "", "", "")).rstrip("/")
     user = username or parsed.username
     pwd = password if password not in (None, "") else parsed.password
     auth = (user or "jandy", pwd) if pwd not in (None, "") else None
     return clean, auth
+
 
 CLOUD_NAMES = {
     "Filter_Pump": "pool_pump",
