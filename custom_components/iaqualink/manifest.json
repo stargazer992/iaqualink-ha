@@ -1,6 +1,6 @@
 {
   "domain": "iaqualink",
-  "name": "Jandy iAquaLink",
+  "name": "JandyBridge",
   "after_dependencies": [
     "frontend",
     "http",
@@ -27,5 +27,5 @@
     "h2>=4.3.0"
   ],
   "single_config_entry": true,
-  "version": "2.6.5"
+  "version": "2.6.6"
 }

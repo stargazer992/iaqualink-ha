@@ -1,4 +1,6 @@
-# Jandy iAquaLink for Home Assistant (with iCL lights)
+# JandyBridge for Home Assistant
+
+Jandy iAquaLink cloud and local Jandy Bridge/AqualinkD control, with iCL lights.
 
 A custom version of Home Assistant's built-in [iAquaLink integration](https://www.home-assistant.io/integrations/iaqualink/), taken from Home Assistant 2026.9.1. It keeps the `iaqualink` domain, so when it's installed it replaces the built-in integration and your existing config entry and entities stay as they are.
 
@@ -20,7 +22,7 @@ A custom version of Home Assistant's built-in [iAquaLink integration](https://ww
 ## Install
 
 1. In HACS, open **Custom repositories** and add `https://github.com/stargazer992/iaqualink-ha` with type **Integration**.
-2. Install **Jandy iAquaLink (iCL lights)** and restart Home Assistant.
+2. Install **JandyBridge** and restart Home Assistant.
 3. If iAquaLink is already set up, nothing else is needed. Otherwise, add it under **Settings > Devices & services**.
 
 ## System status
@@ -146,6 +148,7 @@ You can go back at any time by removing this integration from HACS and restartin
 | v2.5.0 | `Cloud mismatch` binary sensor in Local mode: on when Jandy Bridge and the cloud disagree on a button, setpoint or pump RPM for 15 minutes. |
 | v2.4.2 | iAquaLink status sensor: the system's status on the iAquaLink cloud (Online / Offline / Service), also while Local is in use. |
 | v2.4.0 | Local means Jandy Bridge (`http://<host>:8080`); labels, repair and default address updated. |
+| v2.6.6 | Integration renamed **JandyBridge** in Home Assistant and HACS (domain stays `iaqualink`, so entities and automations are unchanged). |
 | v2.6.5 | Local: a bridge/AqualinkD reply that isn't JSON (e.g. mid-restart) counts as a missed poll instead of an unexpected error. |
 | v2.6.4 | Local: optional Jandy Bridge Basic auth (`aqualinkd_password` or `http://user:pass@host`) for `JB_WEB_PASSWORD`; Timeout Mode maps to Service like Service Mode. |
 
