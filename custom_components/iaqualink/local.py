@@ -150,13 +150,23 @@ class AqualinkdClient:
             raise AqualinkdError(f"AqualinkD {path}: HTTP {response.status_code}")
         return response
 
+    async def _json(self, path: str) -> dict[str, Any]:
+        response = await self._get(path)
+        try:
+            data = response.json()
+        except ValueError as err:
+            raise AqualinkdError(f"AqualinkD {path}: not JSON") from err
+        if not isinstance(data, dict):
+            raise AqualinkdError(f"AqualinkD {path}: unexpected reply")
+        return data
+
     async def devices(self) -> dict[str, Any]:
         """Return /api/devices."""
-        return (await self._get("devices")).json()
+        return await self._json("devices")
 
     async def status(self) -> dict[str, Any]:
         """Return /api/status."""
-        return (await self._get("status")).json()
+        return await self._json("status")
 
     async def command(self, path: str, value: float | None = None) -> None:
         """Send e.g. Aux_1/set, Pool_Heater/setpoint/set or SWG/Percent/set."""

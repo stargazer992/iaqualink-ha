@@ -45,6 +45,7 @@ class FakeAqualinkd:
     def __init__(self) -> None:
         self.status = "Ready"
         self.down = False
+        self.garbage = False
         self.requests: list[str] = []
         self.rows: dict[str, dict[str, Any]] = {
             row["id"]: row
@@ -154,6 +155,8 @@ class FakeAqualinkd:
     def handler(self, request: httpx.Request) -> httpx.Response:
         if self.down:
             raise httpx.ConnectError("down", request=request)
+        if self.garbage:
+            return httpx.Response(200, text="<html>starting</html>")
         path = request.url.path.removeprefix("/api/")
         if path == "devices":
             return httpx.Response(
@@ -312,6 +315,15 @@ async def test_local_epump_rpm_setpoint(fake: FakeAqualinkd) -> None:
 async def test_local_system_unreachable(fake: FakeAqualinkd) -> None:
     """An unreachable AqualinkD marks the system offline."""
     fake.down = True
+    system = LocalSystem(AqualinkdClient(URL, fake.client()), "SN1", "Pool")
+    with pytest.raises(AqualinkdError):
+        await system.update()
+    assert system.online is False
+
+
+async def test_local_system_not_json(fake: FakeAqualinkd) -> None:
+    """A reply that isn't JSON (a bridge mid-restart) is an AqualinkD error, not a crash."""
+    fake.garbage = True
     system = LocalSystem(AqualinkdClient(URL, fake.client()), "SN1", "Pool")
     with pytest.raises(AqualinkdError):
         await system.update()
